@@ -1,5 +1,7 @@
 # Smart eCommerce Intelligence Pipeline for Top-K Product Selection
 
+**Repo:** [GitHub — MedGm/Smart-eCommerce-Intelligence-Pipeline](https://github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline)
+
 **One-sentence pitch:** A pipeline that collects eCommerce product data from Shopify/WooCommerce, prepares and scores products, applies ML/data mining for ranking and segmentation, and exposes insights through a Streamlit dashboard with lightweight LLM-based synthesis.
 
 ## Core objective

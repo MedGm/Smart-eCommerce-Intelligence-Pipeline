@@ -2,6 +2,7 @@
 Shared product schema and base scraper interface.
 Single schema for both Shopify and WooCommerce; maps to dossier fields.
 """
+
 from dataclasses import dataclass, asdict
 from typing import Optional
 import json
@@ -45,7 +46,9 @@ class BaseScraper:
         """Override: fetch products and return list of ProductRecord."""
         raise NotImplementedError
 
-    def save(self, records: list[ProductRecord], filename: str = "products.json") -> Path:
+    def save(
+        self, records: list[ProductRecord], filename: str = "products.json"
+    ) -> Path:
         path = self.output_dir / filename
         data = [r.to_dict() for r in records]
         with open(path, "w", encoding="utf-8") as f:

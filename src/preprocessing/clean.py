@@ -2,10 +2,13 @@
 Deterministic cleaning: dedupe, standardize prices, normalize text,
 harmonize categories, handle missing values, numeric ratings/reviews.
 """
+
 import pandas as pd
 
 
-def remove_duplicates(df: pd.DataFrame, subset: list[str] | None = None) -> pd.DataFrame:
+def remove_duplicates(
+    df: pd.DataFrame, subset: list[str] | None = None
+) -> pd.DataFrame:
     """Remove duplicate rows. Default: key on source_platform, shop_name, product_id."""
     key = subset or ["source_platform", "shop_name", "product_id"]
     return df.drop_duplicates(subset=key, keep="first").reset_index(drop=True)
@@ -21,9 +24,15 @@ def standardize_prices(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def normalize_text_columns(df: pd.DataFrame, columns: list[str] | None = None) -> pd.DataFrame:
+def normalize_text_columns(
+    df: pd.DataFrame, columns: list[str] | None = None
+) -> pd.DataFrame:
     """Strip and normalize whitespace in string columns."""
-    cols = columns or [c for c in ["title", "description", "category", "brand", "availability"] if c in df.columns]
+    cols = columns or [
+        c
+        for c in ["title", "description", "category", "brand", "availability"]
+        if c in df.columns
+    ]
     out = df.copy()
     for c in cols:
         if out[c].dtype == object:
@@ -37,7 +46,9 @@ def numeric_ratings_reviews(df: pd.DataFrame) -> pd.DataFrame:
     if "rating" in out.columns:
         out["rating"] = pd.to_numeric(out["rating"], errors="coerce")
     if "review_count" in out.columns:
-        out["review_count"] = pd.to_numeric(out["review_count"], errors="coerce").fillna(0).astype(int)
+        out["review_count"] = (
+            pd.to_numeric(out["review_count"], errors="coerce").fillna(0).astype(int)
+        )
     return out
 
 

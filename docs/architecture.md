@@ -1,5 +1,7 @@
 # Architecture — Smart eCommerce Intelligence Pipeline
 
+**Scope (fixed):** Data sources are **Shopify** and **WooCommerce** only.
+
 ## Positioning
 
 **Modular monolith with pipeline stages.** Not microservices; not distributed agents. This keeps the project implementable and defensible before 18 May.

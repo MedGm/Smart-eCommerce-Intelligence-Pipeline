@@ -2,13 +2,18 @@
 
 Use this as your checklist. Tick items as you go. Target: **18 May**.
 
+**Repo:** [github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline](https://github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline)  
+`git clone git@github.com:MedGm/Smart-eCommerce-Intelligence-Pipeline.git`
+
 ---
 
 ## Phase 1 — Architecture freeze (do first, together)
 
+**Scope fixed:** Shopify + WooCommerce only (no extra sources or blocks).
+
 | # | Who | Action | Done |
 |---|-----|--------|------|
-| 1.1 | Both | **Agree on scope freeze:** no new blocks, no new sources beyond Shopify + WooCommerce. | ☐ |
+| 1.1 | Both | **Agree on scope freeze:** no new blocks, no new sources beyond Shopify + WooCommerce. | ☑ |
 | 1.2 | Both | **Pick 1–2 real target shops** (one Shopify, one WooCommerce) for scraping. Write URLs in `docs/target_shops.md` or in `.env.example` comments. | ☐ |
 | 1.3 | Mohamed | **Add architecture diagram** in `docs/diagrams/` (draw.io or Mermaid). Refer to it in the report. | ☐ |
 | 1.4 | Both | **Create `develop` branch.** Work on feature branches, merge into `develop`, then `main` when stable. | ☐ |

@@ -1,7 +1,4 @@
 """Smoke test: pipeline stages can be invoked without crashing."""
-import os
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -18,6 +15,7 @@ def data_dir(tmp_path):
 def test_preprocessing_run_empty_data(data_dir, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(data_dir))
     from src.preprocessing.run import run
+
     df = run()
     assert (data_dir / "processed" / "cleaned_products.parquet").exists()
     assert len(df) == 0
@@ -26,5 +24,6 @@ def test_preprocessing_run_empty_data(data_dir, monkeypatch):
 def test_scoring_requires_features(data_dir, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(data_dir))
     from src.scoring.topk import run
+
     run()
     # Should not raise; may write nothing if no features.parquet

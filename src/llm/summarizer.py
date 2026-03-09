@@ -2,6 +2,7 @@
 LLM summarizer: consumes aggregated metrics only (top products, cluster summaries, etc.).
 Logs prompt inputs and data source for responsible design.
 """
+
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,11 @@ def _log_usage(source: str, prompt_preview: str, response_preview: str) -> None:
     """Record prompt and response for MCP-inspired accountability."""
     log_dir = _data_dir() / "analytics"
     log_dir.mkdir(parents=True, exist_ok=True)
-    entry = {"source": source, "prompt_preview": prompt_preview[:200], "response_preview": (response_preview or "")[:200]}
+    entry = {
+        "source": source,
+        "prompt_preview": prompt_preview[:200],
+        "response_preview": (response_preview or "")[:200],
+    }
     log_path = log_dir / "llm_usage_log.jsonl"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -28,6 +33,7 @@ def generate_summary(structured_data: dict) -> str:
     Returns generated text; logs usage.
     """
     from src.llm.prompts import EXECUTIVE_SUMMARY_PROMPT
+
     prompt = EXECUTIVE_SUMMARY_PROMPT.format(data=json.dumps(structured_data, indent=2))
     # Placeholder: no API key by default; return static message so pipeline/dashboard don't break
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
@@ -51,12 +57,21 @@ def run():
     if not (analytics_dir / "topk_products.csv").exists():
         return "(Run pipeline first to generate analytics.)"
     import pandas as pd
+
     topk = pd.read_csv(analytics_dir / "topk_products.csv")
-    top_categories = topk["category"].value_counts().head(5).index.tolist() if "category" in topk.columns else []
+    top_categories = (
+        topk["category"].value_counts().head(5).index.tolist()
+        if "category" in topk.columns
+        else []
+    )
     best_shop = ""
     if "shop_name" in topk.columns and not topk.empty:
         best_shop = topk.groupby("shop_name")["score"].mean().idxmax()
-    data = {"top_categories": top_categories, "best_shop": best_shop, "n_top_products": len(topk)}
+    data = {
+        "top_categories": top_categories,
+        "best_shop": best_shop,
+        "n_top_products": len(topk),
+    }
     if (analytics_dir / "clusters.csv").exists():
         clusters = pd.read_csv(analytics_dir / "clusters.csv")
         data["cluster_summary"] = clusters.groupby("cluster").size().to_dict()
