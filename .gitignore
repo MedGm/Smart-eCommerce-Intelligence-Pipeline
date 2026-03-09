@@ -41,3 +41,6 @@ notebooks/.ipynb_checkpoints/
 # Logs
 *.log
 logs/
+
+# Validator output (keep candidates list, ignore results)
+scripts/target_results.csv

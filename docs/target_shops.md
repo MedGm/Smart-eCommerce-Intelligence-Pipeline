@@ -49,12 +49,12 @@ Pick the **top one per platform** after testing.
 
 ## 3. Final table (after selection)
 
-Once you have chosen the two stores, fill this and put the same in `.env` (Section 9).
+Locked targets (validated with `scripts/validate_targets.py`). Put the same in `.env` (Section 9).
 
-| Platform       | Store name | URL or API base | Method | Auth | Target # products | Notes |
-|----------------|------------|------------------|--------|------|--------------------|--------|
-| **Shopify**    |            |                  |        |      | 300–2000+          |        |
-| **WooCommerce**|            |                  |        |      | 300–2000+          |        |
+| Platform       | Store name      | URL or API base           | Method   | Auth | Target # products | Notes                                      |
+|----------------|-----------------|---------------------------|----------|------|--------------------|---------------------------------------------|
+| **Shopify**    | Ruggable        | https://ruggable.com      | Playwright (storefront) | No  | 300–2000+          | collections/all OK, product links, no anti-bot |
+| **WooCommerce** | Dan-O's Seasoning | https://danosseasoning.com | Store API + /shop/ | No  | 300–2000+          | Store API OK, /shop/ OK, no anti-bot       |
 
 ---
 
@@ -199,13 +199,11 @@ Optional if present: tags, images, variantes. See `src/scraping/base.py` for the
 ## 9. `.env` (once stores are locked)
 
 ```bash
-# Shopify (storefront URL for Playwright scraping)
-SHOPIFY_STORE=https://<store>.myshopify.com
-# Optional if you have Storefront API token:
-# SHOPIFY_STOREFRONT_TOKEN=...
+# Shopify (Ruggable — Playwright storefront scraping)
+SHOPIFY_STORE=https://ruggable.com
 
-# WooCommerce
-WOOCOMMERCE_URL=https://<site>
+# WooCommerce (Dan-O's Seasoning — Store API)
+WOOCOMMERCE_URL=https://danosseasoning.com
 # Optional for REST API v3:
 # WOOCOMMERCE_KEY=...
 # WOOCOMMERCE_SECRET=...
