@@ -16,4 +16,5 @@ def test_compute_score():
 
 
 def test_weights_sum_to_one():
-    assert sum(WEIGHTS.values()) == 1.0
+    # Float precision: 0.35 + 0.3 + 0.2 + 0.15 can be 0.999... in some runtimes
+    assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9
