@@ -1,4 +1,5 @@
 """Tests for ProductRecord schema."""
+
 from src.scraping.base import ProductRecord
 
 

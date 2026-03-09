@@ -2,6 +2,7 @@
 Local end-to-end pipeline: scrape -> preprocess -> features -> score -> train -> LLM summary.
 Run with: python -m src.pipeline.local_pipeline  or  make pipeline
 """
+
 import sys
 
 

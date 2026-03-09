@@ -2,6 +2,7 @@
 Shopify scraper adapter.
 Use Playwright for dynamic pages, requests + BeautifulSoup for static/API where applicable.
 """
+
 from pathlib import Path
 from src.scraping.base import BaseScraper, ProductRecord
 

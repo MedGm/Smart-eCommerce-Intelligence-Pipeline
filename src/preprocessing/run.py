@@ -2,6 +2,7 @@
 Run full preprocessing: load raw JSON from data/raw, clean, validate, transform, write processed.
 Reproducible: same raw input -> same processed output.
 """
+
 import json
 import os
 from pathlib import Path
@@ -47,9 +48,21 @@ def run():
         print("No raw data found. Run scrapers first. Writing empty cleaned output.")
         df = pd.DataFrame(
             columns=[
-                "source_platform", "shop_name", "product_id", "product_url", "title", "description",
-                "category", "brand", "price", "old_price", "availability", "rating", "review_count",
-                "geography", "scraped_at"
+                "source_platform",
+                "shop_name",
+                "product_id",
+                "product_url",
+                "title",
+                "description",
+                "category",
+                "brand",
+                "price",
+                "old_price",
+                "availability",
+                "rating",
+                "review_count",
+                "geography",
+                "scraped_at",
             ]
         )
     else:

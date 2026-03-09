@@ -2,6 +2,7 @@
 Supervised model: predict high-potential product (top 20% by heuristic score).
 Baseline: RandomForestClassifier. Optional: XGBoost comparison.
 """
+
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,13 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+)
 
 
 def _data_dir() -> Path:
@@ -20,11 +27,23 @@ def _data_dir() -> Path:
 def get_feature_columns(df: pd.DataFrame) -> list[str]:
     """Numeric features for training (exclude ids, text, target)."""
     exclude = {
-        "product_id", "product_url", "title", "description", "scraped_at",
-        "source_platform", "shop_name", "category", "brand", "availability",
-        "geography", "price_bucket", "high_potential"
+        "product_id",
+        "product_url",
+        "title",
+        "description",
+        "scraped_at",
+        "source_platform",
+        "shop_name",
+        "category",
+        "brand",
+        "availability",
+        "geography",
+        "price_bucket",
+        "high_potential",
     }
-    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude]
+    return [
+        c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude
+    ]
 
 
 def run():
@@ -44,6 +63,7 @@ def run():
 
     if "score" not in df.columns:
         from src.scoring.topk import compute_score
+
         df["score"] = compute_score(df)
     df["high_potential"] = (df["score"] >= df["score"].quantile(0.80)).astype(int)
     features = get_feature_columns(df)
@@ -52,7 +72,9 @@ def run():
         return
     X = df[features].fillna(0)
     y = df["high_potential"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)

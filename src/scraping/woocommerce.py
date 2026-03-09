@@ -2,6 +2,7 @@
 WooCommerce scraper adapter.
 Use requests + BeautifulSoup for static/API; Playwright for dynamic pages if needed.
 """
+
 from pathlib import Path
 from src.scraping.base import BaseScraper, ProductRecord
 

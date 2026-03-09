@@ -3,6 +3,7 @@ Feature engineering: discount_pct, price_zscore_by_category, rating_weighted_rev
 is_in_stock, description_length, title_length, shop_product_count, category_frequency,
 price_bucket, popularity_proxy. No fake sales data.
 """
+
 import os
 from pathlib import Path
 
@@ -26,9 +27,11 @@ def price_zscore_by_category(df: pd.DataFrame) -> pd.Series:
     """Z-score of price within category."""
     if "price" not in df.columns or "category" not in df.columns:
         return pd.Series(0.0, index=df.index)
-    return df.groupby("category")["price"].transform(
-        lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0.0
-    ).fillna(0)
+    return (
+        df.groupby("category")["price"]
+        .transform(lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0.0)
+        .fillna(0)
+    )
 
 
 def rating_weighted_reviews(df: pd.DataFrame) -> pd.Series:
@@ -53,16 +56,23 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["price_zscore_by_category"] = price_zscore_by_category(out)
     out["rating_weighted_reviews"] = rating_weighted_reviews(out)
     out["is_in_stock"] = is_in_stock(out)
-    out["description_length"] = out.get("description", pd.Series("", index=out.index)).astype(str).str.len()
-    out["title_length"] = out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
-    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"]).transform("size")
+    out["description_length"] = (
+        out.get("description", pd.Series("", index=out.index)).astype(str).str.len()
+    )
+    out["title_length"] = (
+        out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
+    )
+    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"]).transform(
+        "size"
+    )
     out["category_frequency"] = out.groupby("category")["product_id"].transform("count")
     # Price bucket (e.g. quartiles)
     try:
         out["price_bucket"] = pd.qcut(
-            out["price"].fillna(0), q=4,
+            out["price"].fillna(0),
+            q=4,
             labels=["low", "mid_low", "mid_high", "high"],
-            duplicates="drop"
+            duplicates="drop",
         ).astype(str)
     except (ValueError, TypeError):
         out["price_bucket"] = "mid"

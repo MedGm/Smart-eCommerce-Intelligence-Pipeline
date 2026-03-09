@@ -1,6 +1,7 @@
 """
 Orchestrator: run Shopify and WooCommerce scrapers in sequence, write raw JSON.
 """
+
 import os
 from pathlib import Path
 

@@ -1,6 +1,7 @@
 """
 Clustering: KMeans for product segments. Export cluster labels and PCA viz data.
 """
+
 import os
 from pathlib import Path
 
@@ -18,11 +19,24 @@ def _data_dir() -> Path:
 
 def get_feature_columns(df: pd.DataFrame) -> list[str]:
     exclude = {
-        "product_id", "product_url", "title", "description", "scraped_at",
-        "source_platform", "shop_name", "category", "brand", "availability",
-        "geography", "price_bucket", "high_potential", "score"
+        "product_id",
+        "product_url",
+        "title",
+        "description",
+        "scraped_at",
+        "source_platform",
+        "shop_name",
+        "category",
+        "brand",
+        "availability",
+        "geography",
+        "price_bucket",
+        "high_potential",
+        "score",
     }
-    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude]
+    return [
+        c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude
+    ]
 
 
 def run(n_clusters: int = 4):
@@ -51,9 +65,12 @@ def run(n_clusters: int = 4):
     df["cluster"] = km.fit_predict(X_scaled)
     if "score" not in df.columns:
         from src.scoring.topk import compute_score
+
         df["score"] = compute_score(df)
     cols = ["product_id", "title", "category", "shop_name", "cluster", "score"]
-    df[[c for c in cols if c in df.columns]].to_csv(analytics_dir / "clusters.csv", index=False)
+    df[[c for c in cols if c in df.columns]].to_csv(
+        analytics_dir / "clusters.csv", index=False
+    )
     sil = silhouette_score(X_scaled, df["cluster"])
     pca = PCA(n_components=2, random_state=42)
     X2 = pca.fit_transform(X_scaled)
