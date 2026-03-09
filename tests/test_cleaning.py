@@ -1,6 +1,5 @@
 """Tests for preprocessing cleaning."""
 import pandas as pd
-import numpy as np
 from src.preprocessing.clean import remove_duplicates, standardize_prices, clean
 
 

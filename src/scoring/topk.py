@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 
 
 def _data_dir() -> Path:
@@ -88,7 +87,7 @@ def run(k_overall: int = 50, k_per: int = 10):
     topk_overall(df, k_overall).to_csv(analytics_dir / "topk_products.csv", index=False)
     topk_per_category(df, k_per).to_csv(analytics_dir / "topk_per_category.csv", index=False)
     topk_per_shop(df, k_per).to_csv(analytics_dir / "topk_per_shop.csv", index=False)
-    print(f"Scoring done: topk_products.csv, topk_per_category.csv, topk_per_shop.csv")
+    print("Scoring done: topk_products.csv, topk_per_category.csv, topk_per_shop.csv")
     return df
 
 
