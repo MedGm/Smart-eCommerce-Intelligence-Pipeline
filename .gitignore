@@ -1,0 +1,43 @@
+# Data (keep structure via .gitkeep)
+data/raw/**/*.json
+data/processed/*.parquet
+data/processed/*.csv
+data/analytics/*.csv
+data/analytics/*.json
+data/analytics/*.png
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/analytics/.gitkeep
+
+# Env and secrets
+.env
+*.pem
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Test and lint
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Notebooks
+notebooks/.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
