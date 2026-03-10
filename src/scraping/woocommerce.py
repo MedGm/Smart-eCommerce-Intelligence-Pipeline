@@ -64,6 +64,7 @@ class WooCommerceScraper(BaseScraper):
           - prices -> { regular_price, sale_price, price, currency_code, ... }
         """
         prices = product.get("prices") or {}
+
         # price is usually the active price (possibly sale)
         def _to_float(value: object) -> float | None:
             if value is None:
@@ -150,7 +151,9 @@ class WooCommerceScraper(BaseScraper):
                 product_id = str(product.get("id"))
                 product_url = product.get("permalink") or product.get("link") or ""
                 title = product.get("name") or ""
-                description = product.get("description") or product.get("short_description") or ""
+                description = (
+                    product.get("description") or product.get("short_description") or ""
+                )
 
                 if not product_id or not title or not product_url:
                     # Skip incomplete rows – better to have clean data
@@ -185,5 +188,7 @@ class WooCommerceScraper(BaseScraper):
             if len(data) < per_page:
                 break
 
-        print(f"WooCommerceScraper: fetched {len(records)} products from {self.site_url}")
+        print(
+            f"WooCommerceScraper: fetched {len(records)} products from {self.site_url}"
+        )
         return records

@@ -27,9 +27,9 @@ Use this as your checklist. Tick items as you go. Target: **18 May**.
 
 | # | Who | Action | Done |
 |---|-----|--------|------|
-| 2.1 | Ismail | **Implement Shopify scraper** in `src/scraping/shopify.py`: fetch products (API or Playwright), map to `ProductRecord`, save to `data/raw/shopify/products.json`. | ☐ |
-| 2.2 | Ismail | **Implement WooCommerce scraper** in `src/scraping/woocommerce.py`: same idea, save to `data/raw/woocommerce/products.json`. | ☐ |
-| 2.3 | Ismail | **Run `make scrape`** and get **at least 300–500 product records total** (combined). Log broken/missing fields; don’t fake data. | ☐ |
+| 2.1 | Ismail | **Implement Shopify scraper** in `src/scraping/shopify.py`: fetch products (API or Playwright), map to `ProductRecord`, save to `data/raw/shopify/products.json`. | ☑ |
+| 2.2 | Ismail | **Implement WooCommerce scraper** in `src/scraping/woocommerce.py`: same idea, save to `data/raw/woocommerce/products.json`. | ☑ |
+| 2.3 | Ismail | **Run `make scrape`** and get **at least 300–500 product records total** (combined). Log broken/missing fields; don't fake data. | ☑ |
 | 2.4 | Mohamed | **Quick review:** Check that raw JSON matches `ProductRecord` fields and that `make preprocess` runs without errors. | ☐ |
 
 **Definition of done:** `data/raw/shopify/` and/or `data/raw/woocommerce/` contain real product JSON; pipeline runs from raw → processed.

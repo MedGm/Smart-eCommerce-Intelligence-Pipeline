@@ -43,7 +43,9 @@ class ShopifyScraper(BaseScraper):
             f"{base}/collections/runner-rugs",
         ]
 
-    def _extract_from_anchor(self, href: str, text: str) -> tuple[str | None, str | None]:
+    def _extract_from_anchor(
+        self, href: str, text: str
+    ) -> tuple[str | None, str | None]:
         """
         Extract (url, title) from a product anchor.
         """
@@ -87,7 +89,11 @@ class ShopifyScraper(BaseScraper):
                 for collection_url in self._collection_urls():
                     try:
                         print(f"ShopifyScraper: visiting collection {collection_url}")
-                        page.goto(collection_url, timeout=40_000, wait_until="domcontentloaded")
+                        page.goto(
+                            collection_url,
+                            timeout=40_000,
+                            wait_until="domcontentloaded",
+                        )
                     except PlaywrightTimeoutError:
                         print(f"ShopifyScraper: timeout loading {collection_url}")
                         continue
@@ -98,7 +104,9 @@ class ShopifyScraper(BaseScraper):
                         page.wait_for_timeout(1000)
 
                     anchors = page.query_selector_all("a[href*='/products/']")
-                    print(f"ShopifyScraper: found {len(anchors)} product anchors on {collection_url}")
+                    print(
+                        f"ShopifyScraper: found {len(anchors)} product anchors on {collection_url}"
+                    )
 
                     for a in anchors:
                         href = a.get_attribute("href") or ""
