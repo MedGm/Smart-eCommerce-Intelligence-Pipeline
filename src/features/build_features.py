@@ -4,15 +4,12 @@ is_in_stock, description_length, title_length, shop_product_count, category_freq
 price_bucket, popularity_proxy. No fake sales data.
 """
 
-import os
-from pathlib import Path
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 
+from src.config import get_logger, processed_dir
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data"))
+logger = get_logger(__name__)
 
 
 def discount_pct(df: pd.DataFrame) -> pd.Series:
@@ -59,12 +56,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["description_length"] = (
         out.get("description", pd.Series("", index=out.index)).astype(str).str.len()
     )
-    out["title_length"] = (
-        out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
-    )
-    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"]).transform(
-        "size"
-    )
+    out["title_length"] = out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
+    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"])[
+        "product_id"
+    ].transform("count")
     out["category_frequency"] = out.groupby("category")["product_id"].transform("count")
     # Price bucket (e.g. quartiles)
     try:
@@ -90,17 +85,16 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run():
-    root = _data_dir()
-    processed_dir = root / "processed"
-    in_path = processed_dir / "cleaned_products.parquet"
+    p_dir = processed_dir()
+    in_path = p_dir / "cleaned_products.parquet"
     if not in_path.exists():
-        print("No cleaned_products.parquet. Run preprocessing first.")
+        logger.warning("No cleaned_products.parquet. Run preprocessing first.")
         return pd.DataFrame()
     df = pd.read_parquet(in_path)
     df = build_features(df)
-    out_path = processed_dir / "features.parquet"
+    out_path = p_dir / "features.parquet"
     df.to_parquet(out_path, index=False)
-    print(f"Features built: {out_path}")
+    logger.info("Features built: %s", out_path)
     return df
 
 

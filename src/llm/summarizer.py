@@ -9,22 +9,20 @@ Phase 5 expects a Gemini (or Gemini-compatible) client:
 
 import json
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
+from src.config import analytics_dir, get_logger
 
 # Charge les variables depuis .env (GEMINI_API_KEY, etc.) si présent
 load_dotenv()
 
-
-def _data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data"))
+logger = get_logger(__name__)
 
 
 def _log_usage(source: str, prompt_preview: str, response_preview: str) -> None:
     """Record prompt and response for MCP-inspired accountability."""
-    log_dir = _data_dir() / "analytics"
+    log_dir = analytics_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     entry = {
         "source": source,
@@ -34,6 +32,7 @@ def _log_usage(source: str, prompt_preview: str, response_preview: str) -> None:
     log_path = log_dir / "llm_usage_log.jsonl"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    logger.debug("LLM usage logged: source=%s", source)
 
 
 def generate_summary(structured_data: dict) -> str:
@@ -63,9 +62,7 @@ def generate_summary(structured_data: dict) -> str:
         client = genai.Client(api_key=api_key)
         # Use a currently supported text model; good default for summaries.
         # See: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
-        )
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         out = getattr(response, "text", "") or str(response)
         _log_usage("gemini", prompt[:200], out)
         return out
@@ -77,17 +74,14 @@ def generate_summary(structured_data: dict) -> str:
 
 def run():
     """Load analytics outputs and generate summary."""
-    root = _data_dir()
-    analytics_dir = root / "analytics"
-    if not (analytics_dir / "topk_products.csv").exists():
+    a_dir = analytics_dir()
+    if not (a_dir / "topk_products.csv").exists():
         return "(Run pipeline first to generate analytics.)"
     import pandas as pd
 
-    topk = pd.read_csv(analytics_dir / "topk_products.csv")
+    topk = pd.read_csv(a_dir / "topk_products.csv")
     top_categories = (
-        topk["category"].value_counts().head(5).index.tolist()
-        if "category" in topk.columns
-        else []
+        topk["category"].value_counts().head(5).index.tolist() if "category" in topk.columns else []
     )
     best_shop = ""
     if "shop_name" in topk.columns and not topk.empty:
@@ -97,8 +91,8 @@ def run():
         "best_shop": best_shop,
         "n_top_products": len(topk),
     }
-    if (analytics_dir / "clusters.csv").exists():
-        clusters = pd.read_csv(analytics_dir / "clusters.csv")
+    if (a_dir / "clusters.csv").exists():
+        clusters = pd.read_csv(a_dir / "clusters.csv")
         data["cluster_summary"] = clusters.groupby("cluster").size().to_dict()
     return generate_summary(data)
 

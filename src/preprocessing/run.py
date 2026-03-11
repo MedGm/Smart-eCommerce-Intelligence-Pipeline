@@ -4,22 +4,20 @@ Reproducible: same raw input -> same processed output.
 """
 
 import json
-import os
-from pathlib import Path
 
 import pandas as pd
 
+from src.config import data_dir, get_logger, processed_dir
 from src.preprocessing.clean import clean
+from src.preprocessing.transform import fill_missing, harmonize_categories
 from src.preprocessing.validate import validate_required
-from src.preprocessing.transform import harmonize_categories, fill_missing
+
+logger = get_logger(__name__)
 
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data"))
-
-
-def load_raw(root: Path) -> pd.DataFrame:
+def load_raw(root=None) -> pd.DataFrame:
     """Load all raw product JSONs from raw/shopify and raw/woocommerce."""
+    root = root or data_dir()
     raw = root / "raw"
     rows = []
     for platform in ("shopify", "woocommerce"):
@@ -39,13 +37,13 @@ def load_raw(root: Path) -> pd.DataFrame:
 
 
 def run():
-    root = _data_dir()
-    processed_dir = root / "processed"
-    processed_dir.mkdir(parents=True, exist_ok=True)
+    root = data_dir()
+    p_dir = processed_dir()
+    p_dir.mkdir(parents=True, exist_ok=True)
 
     df = load_raw(root)
     if df.empty:
-        print("No raw data found. Run scrapers first. Writing empty cleaned output.")
+        logger.warning("No raw data found. Run scrapers first. Writing empty cleaned output.")
         df = pd.DataFrame(
             columns=[
                 "source_platform",
@@ -71,9 +69,9 @@ def run():
         df = harmonize_categories(df)
         df = fill_missing(df)
 
-    out_path = processed_dir / "cleaned_products.parquet"
+    out_path = p_dir / "cleaned_products.parquet"
     df.to_parquet(out_path, index=False)
-    print(f"Preprocessing done: {len(df)} rows -> {out_path}")
+    logger.info("Preprocessing done: %d rows -> %s", len(df), out_path)
     return df
 
 

@@ -34,7 +34,7 @@ pipeline:
 	$(PYTHON) -m src.pipeline.local_pipeline
 
 dashboard:
-	$(PYTHON) -m streamlit run src/dashboard/app.py --server.port 8501
+	PYTHONPATH=. streamlit run src/dashboard/app.py --server.port 8501
 
 test:
 	$(PYTHON) -m pytest tests/ -v

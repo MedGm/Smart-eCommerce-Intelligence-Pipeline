@@ -1,7 +1,7 @@
 """Tests for preprocessing cleaning."""
 
 import pandas as pd
-from src.preprocessing.clean import remove_duplicates, standardize_prices, clean
+from src.preprocessing.clean import clean, remove_duplicates, standardize_prices
 
 
 def test_remove_duplicates():

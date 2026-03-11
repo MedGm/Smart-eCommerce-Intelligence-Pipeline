@@ -23,13 +23,10 @@ import argparse
 import csv
 import re
 import time
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
 import requests
-from bs4 import BeautifulSoup
-
 
 HEADERS = {
     "User-Agent": (
@@ -46,7 +43,7 @@ TIMEOUT = 12
 class ValidationResult:
     url: str
     reachable: bool
-    homepage_status: Optional[int]
+    homepage_status: int | None
     detected_platform: str
     shopify_collections_all_ok: bool
     shopify_products_hint: bool
@@ -60,7 +57,7 @@ class ValidationResult:
     notes: str
 
 
-def fetch(url: str) -> tuple[Optional[requests.Response], Optional[str]]:
+def fetch(url: str) -> tuple[requests.Response | None, str | None]:
     try:
         response = requests.get(
             url,
@@ -118,10 +115,10 @@ def detect_platform(html: str, headers: dict[str, str]) -> str:
 def has_pagination_hint(html: str) -> bool:
     patterns = [
         r'rel=["\']next["\']',
-        r'page=\d+',
-        r'/page/\d+',
-        r'pagination',
-        r'next page',
+        r"page=\d+",
+        r"/page/\d+",
+        r"pagination",
+        r"next page",
     ]
     html_lower = html.lower()
     return any(re.search(p, html_lower) for p in patterns)
@@ -334,7 +331,7 @@ def validate_site(url: str) -> ValidationResult:
 
 
 def load_targets(path: str) -> list[str]:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         lines = [line.strip() for line in f.readlines()]
     return [line for line in lines if line and not line.startswith("#")]
 
@@ -365,8 +362,7 @@ def main() -> None:
         result = validate_site(url)
         results.append(result)
         print(
-            f"  platform={result.detected_platform}, "
-            f"score={result.score:.1f}, keep={result.keep}"
+            f"  platform={result.detected_platform}, score={result.score:.1f}, keep={result.keep}"
         )
         time.sleep(args.sleep)
 
