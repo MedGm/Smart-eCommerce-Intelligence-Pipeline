@@ -6,7 +6,6 @@ Saves raw JSON per store, then combines into platform-level files.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from src.config import data_dir, get_logger
 from src.scraping.base import ProductRecord

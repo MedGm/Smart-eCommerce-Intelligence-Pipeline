@@ -8,23 +8,24 @@ import pandas as pd
 
 from src.config import processed_dir
 
-
 # Columns to exclude from numeric feature matrices
-_NON_FEATURE_COLUMNS = frozenset({
-    "product_id",
-    "product_url",
-    "title",
-    "description",
-    "scraped_at",
-    "source_platform",
-    "shop_name",
-    "category",
-    "brand",
-    "availability",
-    "geography",
-    "price_bucket",
-    "high_potential",
-})
+_NON_FEATURE_COLUMNS = frozenset(
+    {
+        "product_id",
+        "product_url",
+        "title",
+        "description",
+        "scraped_at",
+        "source_platform",
+        "shop_name",
+        "category",
+        "brand",
+        "availability",
+        "geography",
+        "price_bucket",
+        "high_potential",
+    }
+)
 
 
 def get_feature_columns(
@@ -42,10 +43,7 @@ def get_feature_columns(
     exclude = set(_NON_FEATURE_COLUMNS)
     if exclude_score:
         exclude |= {"score", "popularity_proxy"}
-    return [
-        c for c in df.select_dtypes(include=[np.number]).columns
-        if c not in exclude
-    ]
+    return [c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude]
 
 
 def load_features() -> pd.DataFrame:

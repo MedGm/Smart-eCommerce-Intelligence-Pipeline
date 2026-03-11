@@ -5,9 +5,7 @@ Transformations for feature prep: category harmonization, fill missing, etc.
 import pandas as pd
 
 
-def harmonize_categories(
-    df: pd.DataFrame, category_col: str = "category"
-) -> pd.DataFrame:
+def harmonize_categories(df: pd.DataFrame, category_col: str = "category") -> pd.DataFrame:
     """Normalize category names: lowercase, strip, consolidate similar names."""
     if category_col not in df.columns:
         return df

@@ -15,13 +15,12 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
 
 import requests
 from bs4 import BeautifulSoup
 
+from src.config import DEFAULT_USER_AGENT, SCRAPING_DELAY, SCRAPING_TIMEOUT
 from src.scraping.base import BaseScraper, ProductRecord
-from src.config import SCRAPING_DELAY, SCRAPING_TIMEOUT, DEFAULT_USER_AGENT
 
 HEADERS = {
     "User-Agent": DEFAULT_USER_AGENT,
@@ -51,12 +50,10 @@ class ShopifyScraper(BaseScraper):
     def _extract_product_slugs_playwright(self) -> list[dict]:
         """Use Playwright to crawl collections and extract product slugs + collection context."""
         try:
-            from playwright.sync_api import sync_playwright
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+            from playwright.sync_api import sync_playwright
         except ImportError:
-            print(
-                f"  [{self.shop_name}] Playwright not installed, skipping dynamic scraping."
-            )
+            print(f"  [{self.shop_name}] Playwright not installed, skipping dynamic scraping.")
             return []
 
         results = []
@@ -90,12 +87,7 @@ class ShopifyScraper(BaseScraper):
                         href = a.get_attribute("href") or ""
                         if "/products/" not in href:
                             continue
-                        slug = (
-                            href.split("/products/")[-1]
-                            .split("?")[0]
-                            .split("#")[0]
-                            .rstrip("/")
-                        )
+                        slug = href.split("/products/")[-1].split("?")[0].split("#")[0].rstrip("/")
                         if not slug or slug in seen_slugs:
                             continue
                         seen_slugs.add(slug)
@@ -176,17 +168,11 @@ class ShopifyScraper(BaseScraper):
             return None
 
         body_html = pdata.get("body_html") or ""
-        description = (
-            BeautifulSoup(body_html, "html.parser")
-            .get_text(separator=" ")
-            .strip()[:1000]
-        )
+        description = BeautifulSoup(body_html, "html.parser").get_text(separator=" ").strip()[:1000]
 
         category = pdata.get("product_type") or None
         if not category or category.strip() == "":
-            category = (
-                collection.replace("-", " ").title() if collection != "all" else None
-            )
+            category = collection.replace("-", " ").title() if collection != "all" else None
 
         brand = pdata.get("vendor") or self.shop_name
 
@@ -232,19 +218,17 @@ class ShopifyScraper(BaseScraper):
             scraped_at=now,
         )
 
-    def scrape(self) -> List[ProductRecord]:
+    def scrape(self) -> list[ProductRecord]:
         if not self.store_url:
             print("ShopifyScraper: no store_url configured, skipping.")
             return []
 
         print(f"ShopifyScraper: starting {self.shop_name} ({self.store_url})")
         now = datetime.now(timezone.utc).isoformat()
-        records: List[ProductRecord] = []
+        records: list[ProductRecord] = []
 
         slug_info = self._extract_product_slugs_playwright()
-        print(
-            f"  [{self.shop_name}] Collected {len(slug_info)} product slugs, enriching..."
-        )
+        print(f"  [{self.shop_name}] Collected {len(slug_info)} product slugs, enriching...")
 
         for i, info in enumerate(slug_info):
             slug = info["slug"]
@@ -286,9 +270,7 @@ class ShopifyScraper(BaseScraper):
                     records.append(record)
 
             if (i + 1) % 20 == 0:
-                print(
-                    f"  [{self.shop_name}] Enriched {i + 1}/{len(slug_info)} products"
-                )
+                print(f"  [{self.shop_name}] Enriched {i + 1}/{len(slug_info)} products")
             time.sleep(SCRAPING_DELAY)
 
         print(f"ShopifyScraper: {self.shop_name} done — {len(records)} products")

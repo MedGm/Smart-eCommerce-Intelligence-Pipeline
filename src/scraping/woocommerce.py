@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
 
 import requests
 from bs4 import BeautifulSoup
@@ -119,7 +118,7 @@ class WooCommerceScraper(BaseScraper):
             reviews = None
         return rating, reviews
 
-    def scrape(self) -> List[ProductRecord]:
+    def scrape(self) -> list[ProductRecord]:
         if not self.site_url:
             print("WooCommerceScraper: no site_url configured, skipping.")
             return []
@@ -128,7 +127,7 @@ class WooCommerceScraper(BaseScraper):
 
         per_page = 40
         max_pages = 25
-        records: List[ProductRecord] = []
+        records: list[ProductRecord] = []
         now = datetime.now(timezone.utc).isoformat()
 
         for page in range(1, max_pages + 1):
@@ -140,9 +139,7 @@ class WooCommerceScraper(BaseScraper):
                 break
 
             if resp.status_code != 200:
-                print(
-                    f"  [{self.shop_name}] Page {page} status {resp.status_code}, stopping."
-                )
+                print(f"  [{self.shop_name}] Page {page} status {resp.status_code}, stopping.")
                 break
 
             try:
@@ -158,9 +155,7 @@ class WooCommerceScraper(BaseScraper):
                 product_id = str(product.get("id"))
                 product_url = product.get("permalink") or product.get("link") or ""
                 title = product.get("name") or ""
-                raw_desc = (
-                    product.get("description") or product.get("short_description") or ""
-                )
+                raw_desc = product.get("description") or product.get("short_description") or ""
                 description = self._strip_html(raw_desc)
 
                 if not product_id or not title or not product_url:
@@ -190,9 +185,7 @@ class WooCommerceScraper(BaseScraper):
                 )
                 records.append(record)
 
-            print(
-                f"  [{self.shop_name}] Page {page}: {len(data)} items (total: {len(records)})"
-            )
+            print(f"  [{self.shop_name}] Page {page}: {len(data)} items (total: {len(records)})")
             if len(data) < per_page:
                 break
 

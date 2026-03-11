@@ -1,9 +1,9 @@
 """Tests for LLM module (prompts and summarizer structure)."""
 
 from src.llm.prompts import (
-    EXECUTIVE_SUMMARY_PROMPT,
     CATEGORY_TRENDS_PROMPT,
     CHAIN_OF_THOUGHT_PROMPT,
+    EXECUTIVE_SUMMARY_PROMPT,
     PRODUCT_COMPARISON_PROMPT,
 )
 
@@ -29,6 +29,7 @@ def test_product_comparison_prompt():
 def test_prompt_formatting():
     """Prompts should be formattable with a data string."""
     import json
+
     sample = json.dumps({"test": "data"})
     result = EXECUTIVE_SUMMARY_PROMPT.format(data=sample)
     assert "test" in result
@@ -37,6 +38,7 @@ def test_prompt_formatting():
 
 def test_chain_of_thought_formatting():
     import json
+
     sample = json.dumps({"categories": ["A", "B"]})
     result = CHAIN_OF_THOUGHT_PROMPT.format(data=sample)
     assert "categories" in result

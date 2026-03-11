@@ -6,7 +6,7 @@ Compute Top-K overall, per category, per shop.
 
 import pandas as pd
 
-from src.config import processed_dir, analytics_dir, get_logger
+from src.config import analytics_dir, get_logger, processed_dir
 
 logger = get_logger(__name__)
 
@@ -35,11 +35,7 @@ def compute_score(df: pd.DataFrame) -> pd.Series:
     rating_norm = normalize(rating / 5.0)
     review_count = df.get("review_count", 0).fillna(0).astype(float)
     review_norm = normalize(review_count)
-    availability = (
-        df.get("is_in_stock", True).astype(float)
-        if "is_in_stock" in df.columns
-        else 1.0
-    )
+    availability = df.get("is_in_stock", True).astype(float) if "is_in_stock" in df.columns else 1.0
     if isinstance(availability, pd.Series):
         availability_norm = availability
     else:
@@ -69,11 +65,7 @@ def topk_per_category(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
 
 
 def topk_per_shop(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
-    key = (
-        ["source_platform", "shop_name"]
-        if "shop_name" in df.columns
-        else ["source_platform"]
-    )
+    key = ["source_platform", "shop_name"] if "shop_name" in df.columns else ["source_platform"]
     return (
         df.groupby(key, group_keys=False)
         .apply(lambda g: g.nlargest(k, "score"))
@@ -98,9 +90,7 @@ def run(k_overall: int = 50, k_per: int = 10):
     df["score"] = compute_score(df)
 
     topk_overall(df, k_overall).to_csv(a_dir / "topk_products.csv", index=False)
-    topk_per_category(df, k_per).to_csv(
-        a_dir / "topk_per_category.csv", index=False
-    )
+    topk_per_category(df, k_per).to_csv(a_dir / "topk_per_category.csv", index=False)
     topk_per_shop(df, k_per).to_csv(a_dir / "topk_per_shop.csv", index=False)
     logger.info("Scoring done: topk_products.csv, topk_per_category.csv, topk_per_shop.csv")
     return df

@@ -4,9 +4,9 @@ Clustering: KMeans for product segments. Export cluster labels and PCA viz data.
 
 import pandas as pd
 from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
 
 from src.config import analytics_dir, get_logger
 from src.ml.utils import get_feature_columns, load_features
@@ -38,12 +38,11 @@ def run(n_clusters: int = 4):
 
     if "score" not in df.columns:
         from src.scoring.topk import compute_score
+
         df["score"] = compute_score(df)
 
     cols = ["product_id", "title", "category", "shop_name", "cluster", "score"]
-    df[[c for c in cols if c in df.columns]].to_csv(
-        out_dir / "clusters.csv", index=False
-    )
+    df[[c for c in cols if c in df.columns]].to_csv(out_dir / "clusters.csv", index=False)
 
     sil = silhouette_score(X_scaled, df["cluster"])
 
@@ -52,9 +51,7 @@ def run(n_clusters: int = 4):
     viz = pd.DataFrame({"pc1": X2[:, 0], "pc2": X2[:, 1], "cluster": df["cluster"]})
     viz.to_csv(out_dir / "pca_viz.csv", index=False)
 
-    logger.info(
-        "Clustering done: clusters.csv, pca_viz.csv (silhouette=%.3f)", sil
-    )
+    logger.info("Clustering done: clusters.csv, pca_viz.csv (silhouette=%.3f)", sil)
     return df
 
 

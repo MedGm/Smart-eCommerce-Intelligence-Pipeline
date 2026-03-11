@@ -4,10 +4,10 @@ is_in_stock, description_length, title_length, shop_product_count, category_freq
 price_bucket, popularity_proxy. No fake sales data.
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from src.config import processed_dir, get_logger
+from src.config import get_logger, processed_dir
 
 logger = get_logger(__name__)
 
@@ -56,12 +56,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["description_length"] = (
         out.get("description", pd.Series("", index=out.index)).astype(str).str.len()
     )
-    out["title_length"] = (
-        out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
-    )
-    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"])["product_id"].transform(
-        "count"
-    )
+    out["title_length"] = out.get("title", pd.Series("", index=out.index)).astype(str).str.len()
+    out["shop_product_count"] = out.groupby(["source_platform", "shop_name"])[
+        "product_id"
+    ].transform("count")
     out["category_frequency"] = out.groupby("category")["product_id"].transform("count")
     # Price bucket (e.g. quartiles)
     try:

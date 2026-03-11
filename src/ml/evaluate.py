@@ -32,16 +32,22 @@ def aggregate_metrics(out_dir: Path | None = None) -> dict:
     clusters_path = p / "clusters.csv"
     if clusters_path.exists():
         import pandas as pd
+
         clusters = pd.read_csv(clusters_path)
         results["kmeans"] = {
-            "n_clusters": int(clusters["cluster"].nunique()) if "cluster" in clusters.columns else 0,
-            "cluster_sizes": clusters["cluster"].value_counts().to_dict() if "cluster" in clusters.columns else {},
+            "n_clusters": int(clusters["cluster"].nunique())
+            if "cluster" in clusters.columns
+            else 0,
+            "cluster_sizes": clusters["cluster"].value_counts().to_dict()
+            if "cluster" in clusters.columns
+            else {},
         }
 
     # Clustering: DBSCAN
     dbscan_path = p / "dbscan_clusters.csv"
     if dbscan_path.exists():
         import pandas as pd
+
         dbscan = pd.read_csv(dbscan_path)
         if "dbscan_cluster" in dbscan.columns:
             labels = dbscan["dbscan_cluster"]
@@ -55,10 +61,13 @@ def aggregate_metrics(out_dir: Path | None = None) -> dict:
     rules_path = p / "association_rules.csv"
     if rules_path.exists():
         import pandas as pd
+
         rules = pd.read_csv(rules_path)
         results["association_rules"] = {
             "n_rules": len(rules),
-            "avg_confidence": float(rules["confidence"].mean()) if "confidence" in rules.columns else 0,
+            "avg_confidence": float(rules["confidence"].mean())
+            if "confidence" in rules.columns
+            else 0,
             "avg_lift": float(rules["lift"].mean()) if "lift" in rules.columns else 0,
         }
 

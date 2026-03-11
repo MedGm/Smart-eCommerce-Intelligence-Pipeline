@@ -1,10 +1,8 @@
 """Tests for MCP architecture (responsible design)."""
 
 import json
-from pathlib import Path
 
 import pytest
-
 from src.mcp.architecture import AnalyticsReaderServer, MCPClient
 
 

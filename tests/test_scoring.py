@@ -1,7 +1,7 @@
 """Tests for Top-K scoring."""
 
 import pandas as pd
-from src.scoring.topk import compute_score, WEIGHTS
+from src.scoring.topk import WEIGHTS, compute_score
 
 
 def test_compute_score():

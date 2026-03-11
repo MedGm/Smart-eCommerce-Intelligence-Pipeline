@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 from src.config import analytics_dir, get_logger
 
@@ -51,9 +50,7 @@ class AnalyticsReaderServer:
         """List analytics files the client is allowed to read."""
         if not self.analytics_dir.exists():
             return []
-        return [
-            f.name for f in self.analytics_dir.iterdir() if f.name in self.ALLOWED_FILES
-        ]
+        return [f.name for f in self.analytics_dir.iterdir() if f.name in self.ALLOWED_FILES]
 
     def read_analytics_file(self, filename: str) -> str | None:
         """Read an analytics file if it is in the allowed list (permission check)."""

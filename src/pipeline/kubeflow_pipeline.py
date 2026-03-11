@@ -97,13 +97,13 @@ def smart_ecommerce_pipeline():
     f = features_op().after(p)
     s = score_op().after(f)
     # Classifiers can run in parallel after scoring
-    rf = train_classifier_op().after(s)
-    xgb = train_xgboost_op().after(s)
+    train_classifier_op().after(s)
+    train_xgboost_op().after(s)
     # Clustering runs after scoring (needs features)
-    km = cluster_kmeans_op().after(f)
-    db = cluster_dbscan_op().after(f)
+    cluster_kmeans_op().after(f)
+    cluster_dbscan_op().after(f)
     # Association rules run after features
-    ar = association_rules_op().after(f)
+    association_rules_op().after(f)
 
 
 def run() -> None:

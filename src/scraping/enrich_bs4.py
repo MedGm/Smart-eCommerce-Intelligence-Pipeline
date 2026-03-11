@@ -81,9 +81,7 @@ def enrich_product(product: dict, delay: float = 1.0) -> dict:
     return product
 
 
-def enrich_raw_file(
-    path: Path, max_products: int = 20, delay: float = 1.0
-) -> list[dict]:
+def enrich_raw_file(path: Path, max_products: int = 20, delay: float = 1.0) -> list[dict]:
     """Load a raw JSON file, enrich up to max_products, save back."""
     with open(path, encoding="utf-8") as f:
         products = json.load(f)

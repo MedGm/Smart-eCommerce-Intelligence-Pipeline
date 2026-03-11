@@ -62,9 +62,7 @@ def generate_summary(structured_data: dict) -> str:
         client = genai.Client(api_key=api_key)
         # Use a currently supported text model; good default for summaries.
         # See: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=prompt
-        )
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         out = getattr(response, "text", "") or str(response)
         _log_usage("gemini", prompt[:200], out)
         return out
@@ -83,9 +81,7 @@ def run():
 
     topk = pd.read_csv(a_dir / "topk_products.csv")
     top_categories = (
-        topk["category"].value_counts().head(5).index.tolist()
-        if "category" in topk.columns
-        else []
+        topk["category"].value_counts().head(5).index.tolist() if "category" in topk.columns else []
     )
     best_shop = ""
     if "shop_name" in topk.columns and not topk.empty:

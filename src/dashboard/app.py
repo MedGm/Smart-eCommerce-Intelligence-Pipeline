@@ -6,32 +6,35 @@ and MCP-based data access (responsible architecture).
 Dossier tools: Streamlit, Plotly, Altair, Seaborn.
 """
 
-import json
 import io
-import sys
+import json
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
 
 from src.mcp.architecture import MCPClient
 
 try:
     import altair as alt
+
     HAS_ALTAIR = True
 except ImportError:
     HAS_ALTAIR = False
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import seaborn as sns
+
     HAS_SEABORN = True
 except ImportError:
     HAS_SEABORN = False
@@ -49,8 +52,18 @@ C = {
     "border": "rgba(255,255,255,0.06)",
     "text": "#E6EDF3",
     "muted": "#7D8590",
-    "palette": ["#7C6EF6", "#1DB9D8", "#2DCC8E", "#F0A150", "#E05B7A",
-                "#A371F7", "#3FB950", "#D29922", "#F778BA", "#79C0FF"],
+    "palette": [
+        "#7C6EF6",
+        "#1DB9D8",
+        "#2DCC8E",
+        "#F0A150",
+        "#E05B7A",
+        "#A371F7",
+        "#3FB950",
+        "#D29922",
+        "#F778BA",
+        "#79C0FF",
+    ],
 }
 
 
@@ -64,7 +77,8 @@ st.set_page_config(
 
 
 # ── Custom CSS ────────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -200,7 +214,9 @@ div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
     letter-spacing: 0.5px;
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ── MCP Client ────────────────────────────────────────────────
@@ -226,6 +242,7 @@ def load_json(name: str) -> dict:
 @st.cache_data(ttl=60)
 def load_features() -> pd.DataFrame:
     from src.config import processed_dir
+
     p = processed_dir() / "features.parquet"
     return pd.read_parquet(p) if p.exists() else pd.DataFrame()
 
@@ -234,6 +251,7 @@ def load_features() -> pd.DataFrame:
 def get_llm_summary() -> str:
     try:
         from src.llm.summarizer import run as llm_run
+
         return llm_run()
     except Exception as e:
         return f"LLM summary unavailable: {e}"
@@ -257,14 +275,17 @@ def apply_theme(fig, title="", height=400):
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
+    st.markdown(
+        """
     <div style="padding: 24px 0 16px; text-align: center;">
         <div style="font-size: 13px; font-weight: 700; letter-spacing: 2px;
              text-transform: uppercase; color: #7C6EF6;">Smart eCommerce</div>
         <div style="font-size: 11px; color: #7D8590; margin-top: 2px;">
             Intelligence Pipeline</div>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
     page = st.radio(
@@ -299,7 +320,10 @@ with st.sidebar:
 # ══════════════════════════════════════════════════════════════
 if page == "Overview":
     st.markdown('<div class="page-title">Dashboard Overview</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Real-time analytics from 8 stores across 6 product niches</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Real-time analytics from 8 stores across 6 product niches</div>',
+        unsafe_allow_html=True,
+    )
 
     df = load_features()
     if df.empty:
@@ -311,7 +335,9 @@ if page == "Overview":
     k1.metric("Products", f"{len(df):,}")
     k2.metric("Shops", df["shop_name"].nunique() if "shop_name" in df.columns else 0)
     k3.metric("Avg Price", f"${df['price'].dropna().mean():.2f}" if "price" in df.columns else "—")
-    k4.metric("Avg Rating", f"{df['rating'].dropna().mean():.1f}" if "rating" in df.columns else "—")
+    k4.metric(
+        "Avg Rating", f"{df['rating'].dropna().mean():.1f}" if "rating" in df.columns else "—"
+    )
     k5.metric("Categories", df["category"].nunique() if "category" in df.columns else 0)
 
     st.markdown("")
@@ -322,8 +348,13 @@ if page == "Overview":
         if "source_platform" in df.columns:
             pf = df["source_platform"].value_counts().reset_index()
             pf.columns = ["Platform", "Products"]
-            fig = px.pie(pf, values="Products", names="Platform", hole=0.6,
-                         color_discrete_sequence=[C["primary"], C["accent"]])
+            fig = px.pie(
+                pf,
+                values="Products",
+                names="Platform",
+                hole=0.6,
+                color_discrete_sequence=[C["primary"], C["accent"]],
+            )
             fig.update_traces(textposition="inside", textinfo="percent+label", textfont_size=12)
             fig = apply_theme(fig, "Platform Distribution", 340)
             st.plotly_chart(fig, width="stretch")
@@ -332,9 +363,14 @@ if page == "Overview":
         if "shop_name" in df.columns:
             sc = df["shop_name"].value_counts().reset_index()
             sc.columns = ["Shop", "Count"]
-            fig = px.bar(sc, x="Count", y="Shop", orientation="h",
-                         color="Count",
-                         color_continuous_scale=[[0, C["primary"]], [1, C["accent"]]])
+            fig = px.bar(
+                sc,
+                x="Count",
+                y="Shop",
+                orientation="h",
+                color="Count",
+                color_continuous_scale=[[0, C["primary"]], [1, C["accent"]]],
+            )
             fig.update_layout(showlegend=False, coloraxis_showscale=False)
             fig = apply_theme(fig, "Products per Shop", 340)
             st.plotly_chart(fig, width="stretch")
@@ -352,20 +388,31 @@ if page == "Overview":
                     .encode(
                         x=alt.X("Count:Q", title="Products"),
                         y=alt.Y("Category:N", sort="-x", title=None),
-                        color=alt.Color("Count:Q", scale=alt.Scale(
-                            range=[C["primary"], C["accent"]]), legend=None),
+                        color=alt.Color(
+                            "Count:Q",
+                            scale=alt.Scale(range=[C["primary"], C["accent"]]),
+                            legend=None,
+                        ),
                     )
                     .properties(title="Top Categories", height=340)
                     .configure_view(strokeWidth=0)
-                    .configure_axis(gridColor="rgba(255,255,255,0.04)",
-                                    labelColor=C["muted"], titleColor=C["muted"])
+                    .configure_axis(
+                        gridColor="rgba(255,255,255,0.04)",
+                        labelColor=C["muted"],
+                        titleColor=C["muted"],
+                    )
                     .configure_title(color=C["text"], fontSize=14)
                 )
                 st.altair_chart(chart, use_container_width=True)
             else:
-                fig = px.bar(cc, x="Count", y="Category", orientation="h",
-                             color="Count",
-                             color_continuous_scale=[[0, C["primary"]], [1, C["success"]]])
+                fig = px.bar(
+                    cc,
+                    x="Count",
+                    y="Category",
+                    orientation="h",
+                    color="Count",
+                    color_continuous_scale=[[0, C["primary"]], [1, C["success"]]],
+                )
                 fig.update_layout(coloraxis_showscale=False)
                 fig = apply_theme(fig, "Top Categories", 340)
                 st.plotly_chart(fig, width="stretch")
@@ -375,14 +422,17 @@ if page == "Overview":
             prices = df["price"].dropna()
             if not prices.empty:
                 fig = go.Figure()
-                fig.add_trace(go.Histogram(
-                    x=prices, nbinsx=30,
-                    marker=dict(color=C["primary"], line=dict(width=0.5, color="#0E1117")),
-                    opacity=0.9, name="Count",
-                ))
+                fig.add_trace(
+                    go.Histogram(
+                        x=prices,
+                        nbinsx=30,
+                        marker=dict(color=C["primary"], line=dict(width=0.5, color="#0E1117")),
+                        opacity=0.9,
+                        name="Count",
+                    )
+                )
                 fig = apply_theme(fig, "Price Distribution", 340)
-                fig.update_layout(xaxis_title="Price ($)", yaxis_title="Products",
-                                  bargap=0.05)
+                fig.update_layout(xaxis_title="Price ($)", yaxis_title="Products", bargap=0.05)
                 st.plotly_chart(fig, width="stretch")
 
     # Row 3: Rating + Discount
@@ -393,10 +443,13 @@ if page == "Overview":
             rated = rated[rated > 0]
             if not rated.empty:
                 fig = go.Figure()
-                fig.add_trace(go.Histogram(
-                    x=rated, nbinsx=20,
-                    marker=dict(color=C["warning"], line=dict(width=0.5, color="#0E1117")),
-                ))
+                fig.add_trace(
+                    go.Histogram(
+                        x=rated,
+                        nbinsx=20,
+                        marker=dict(color=C["warning"], line=dict(width=0.5, color="#0E1117")),
+                    )
+                )
                 fig = apply_theme(fig, f"Rating Distribution ({len(rated)} rated)", 300)
                 fig.update_layout(xaxis_title="Rating", yaxis_title="Products")
                 st.plotly_chart(fig, width="stretch")
@@ -407,10 +460,13 @@ if page == "Overview":
             disc = disc[disc > 0]
             if not disc.empty:
                 fig = go.Figure()
-                fig.add_trace(go.Histogram(
-                    x=disc, nbinsx=20,
-                    marker=dict(color=C["secondary"], line=dict(width=0.5, color="#0E1117")),
-                ))
+                fig.add_trace(
+                    go.Histogram(
+                        x=disc,
+                        nbinsx=20,
+                        marker=dict(color=C["secondary"], line=dict(width=0.5, color="#0E1117")),
+                    )
+                )
                 fig = apply_theme(fig, f"Discount Distribution ({len(disc)} discounted)", 300)
                 fig.update_layout(xaxis_title="Discount %", yaxis_title="Products")
                 st.plotly_chart(fig, width="stretch")
@@ -423,10 +479,17 @@ if page == "Overview":
             if len(keep) > 3:
                 corr = df[keep].corr()
                 fig_s, ax = plt.subplots(figsize=(10, 5.5))
-                sns.heatmap(corr, annot=True, fmt=".2f", cmap="RdBu_r",
-                           ax=ax, square=True, linewidths=0.5,
-                           cbar_kws={"shrink": 0.75},
-                           annot_kws={"size": 9})
+                sns.heatmap(
+                    corr,
+                    annot=True,
+                    fmt=".2f",
+                    cmap="RdBu_r",
+                    ax=ax,
+                    square=True,
+                    linewidths=0.5,
+                    cbar_kws={"shrink": 0.75},
+                    annot_kws={"size": 9},
+                )
                 ax.set_title("Feature Correlation Matrix", fontsize=13, pad=12, color="#E6EDF3")
                 ax.tick_params(colors="#7D8590", labelsize=9)
                 fig_s.patch.set_facecolor("#0E1117")
@@ -441,7 +504,10 @@ if page == "Overview":
 # ══════════════════════════════════════════════════════════════
 elif page == "Product Rankings":
     st.markdown('<div class="page-title">Product Rankings</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Top-K products by composite score (weighted: rating, reviews, availability, discount)</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Top-K products by composite score (weighted: rating, reviews, availability, discount)</div>',
+        unsafe_allow_html=True,
+    )
 
     topk = load_csv("topk_products.csv")
     if topk.empty:
@@ -452,10 +518,18 @@ elif page == "Product Rankings":
     st.markdown('<div class="section-header">Filters</div>', unsafe_allow_html=True)
     fc1, fc2, fc3, fc4 = st.columns(4)
     with fc1:
-        cats = ["All"] + (sorted(topk["category"].dropna().unique().tolist()) if "category" in topk.columns else [])
+        cats = ["All"] + (
+            sorted(topk["category"].dropna().unique().tolist())
+            if "category" in topk.columns
+            else []
+        )
         sel_cat = st.selectbox("Category", cats)
     with fc2:
-        shops = ["All"] + (sorted(topk["shop_name"].dropna().unique().tolist()) if "shop_name" in topk.columns else [])
+        shops = ["All"] + (
+            sorted(topk["shop_name"].dropna().unique().tolist())
+            if "shop_name" in topk.columns
+            else []
+        )
         sel_shop = st.selectbox("Shop", shops)
     with fc3:
         if "price" in topk.columns and topk["price"].notna().any():
@@ -487,29 +561,54 @@ elif page == "Product Rankings":
             else:
                 display_df["label"] = display_df.index.astype(str)
             fig = px.bar(
-                display_df, x="score", y="label", orientation="h",
+                display_df,
+                x="score",
+                y="label",
+                orientation="h",
                 color="score",
-                color_continuous_scale=[[0, C["secondary"]], [0.5, C["warning"]], [1, C["success"]]],
-                hover_data=[c for c in ["shop_name", "price", "category"] if c in display_df.columns],
+                color_continuous_scale=[
+                    [0, C["secondary"]],
+                    [0.5, C["warning"]],
+                    [1, C["success"]],
+                ],
+                hover_data=[
+                    c for c in ["shop_name", "price", "category"] if c in display_df.columns
+                ],
             )
-            fig.update_layout(coloraxis_showscale=False, yaxis={"categoryorder": "total ascending"},
-                              yaxis_title=None)
+            fig.update_layout(
+                coloraxis_showscale=False,
+                yaxis={"categoryorder": "total ascending"},
+                yaxis_title=None,
+            )
             fig = apply_theme(fig, f"Top {min(20, len(fd))} by Score", 500)
             st.plotly_chart(fig, width="stretch")
 
         with table_col:
-            cols = [c for c in ["title", "shop_name", "category", "price", "score"] if c in fd.columns]
+            cols = [
+                c for c in ["title", "shop_name", "category", "price", "score"] if c in fd.columns
+            ]
             st.dataframe(fd[cols].head(20) if cols else fd.head(20), height=480)
 
     # Per-category analysis
     topk_cat = load_csv("topk_per_category.csv")
     if not topk_cat.empty and "category" in topk_cat.columns and "score" in topk_cat.columns:
         with st.expander("Category Score Breakdown"):
-            cat_avg = topk_cat.groupby("category")["score"].mean().sort_values(ascending=False).head(15).reset_index()
+            cat_avg = (
+                topk_cat.groupby("category")["score"]
+                .mean()
+                .sort_values(ascending=False)
+                .head(15)
+                .reset_index()
+            )
             cat_avg.columns = ["Category", "Avg Score"]
-            fig = px.bar(cat_avg, x="Avg Score", y="Category", orientation="h",
-                         color="Avg Score",
-                         color_continuous_scale=[[0, C["primary"]], [1, C["success"]]])
+            fig = px.bar(
+                cat_avg,
+                x="Avg Score",
+                y="Category",
+                orientation="h",
+                color="Avg Score",
+                color_continuous_scale=[[0, C["primary"]], [1, C["success"]]],
+            )
             fig.update_layout(coloraxis_showscale=False)
             fig = apply_theme(fig, "Average Score by Category", 380)
             st.plotly_chart(fig, width="stretch")
@@ -520,7 +619,10 @@ elif page == "Product Rankings":
 # ══════════════════════════════════════════════════════════════
 elif page == "Shop Analysis":
     st.markdown('<div class="page-title">Shop Performance</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Comparative analysis across all scraped stores</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Comparative analysis across all scraped stores</div>',
+        unsafe_allow_html=True,
+    )
 
     df = load_features()
     topk_shop = load_csv("topk_per_shop.csv")
@@ -530,15 +632,22 @@ elif page == "Shop Analysis":
         st.stop()
 
     if "shop_name" in df.columns:
-        stats = df.groupby("shop_name").agg(
-            products=("product_id", "count"),
-            avg_price=("price", "mean"),
-            avg_rating=("rating", "mean"),
-            avg_discount=("discount_pct", "mean"),
-        ).reset_index().sort_values("products", ascending=False)
+        stats = (
+            df.groupby("shop_name")
+            .agg(
+                products=("product_id", "count"),
+                avg_price=("price", "mean"),
+                avg_rating=("rating", "mean"),
+                avg_discount=("discount_pct", "mean"),
+            )
+            .reset_index()
+            .sort_values("products", ascending=False)
+        )
 
         st.dataframe(
-            stats.style.format({"avg_price": "${:.2f}", "avg_rating": "{:.2f}", "avg_discount": "{:.1%}"}),
+            stats.style.format(
+                {"avg_price": "${:.2f}", "avg_rating": "{:.2f}", "avg_discount": "{:.1%}"}
+            ),
             height=280,
         )
 
@@ -555,33 +664,63 @@ elif page == "Shop Analysis":
             for i, (_, row) in enumerate(rd.iterrows()):
                 vals = [row[f"{m}_n"] for m in metrics] + [row[f"{metrics[0]}_n"]]
                 theta = ["Price", "Rating", "Discount", "Products", "Price"]
-                fig.add_trace(go.Scatterpolar(
-                    r=vals, theta=theta, fill="toself",
-                    name=row["shop_name"], opacity=0.55,
-                    line=dict(color=C["palette"][i % len(C["palette"])]),
-                ))
+                fig.add_trace(
+                    go.Scatterpolar(
+                        r=vals,
+                        theta=theta,
+                        fill="toself",
+                        name=row["shop_name"],
+                        opacity=0.55,
+                        line=dict(color=C["palette"][i % len(C["palette"])]),
+                    )
+                )
             fig = apply_theme(fig, "Shop Comparison", 450)
-            fig.update_layout(polar=dict(
-                bgcolor="rgba(0,0,0,0)",
-                radialaxis=dict(gridcolor="rgba(255,255,255,0.06)", showticklabels=False),
-                angularaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
-            ))
+            fig.update_layout(
+                polar=dict(
+                    bgcolor="rgba(0,0,0,0)",
+                    radialaxis=dict(gridcolor="rgba(255,255,255,0.06)", showticklabels=False),
+                    angularaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
+                )
+            )
             st.plotly_chart(fig, width="stretch")
 
         with tab2:
-            fig = px.box(df.dropna(subset=["price"]), x="shop_name", y="price",
-                         color="shop_name", color_discrete_sequence=C["palette"])
+            fig = px.box(
+                df.dropna(subset=["price"]),
+                x="shop_name",
+                y="price",
+                color="shop_name",
+                color_discrete_sequence=C["palette"],
+            )
             fig = apply_theme(fig, "Price Distribution by Shop", 400)
             fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title="Price ($)")
             st.plotly_chart(fig, width="stretch")
 
         with tab3:
-            if not topk_shop.empty and "score" in topk_shop.columns and "shop_name" in topk_shop.columns:
-                ss = topk_shop.groupby("shop_name")["score"].mean().sort_values(ascending=True).reset_index()
+            if (
+                not topk_shop.empty
+                and "score" in topk_shop.columns
+                and "shop_name" in topk_shop.columns
+            ):
+                ss = (
+                    topk_shop.groupby("shop_name")["score"]
+                    .mean()
+                    .sort_values(ascending=True)
+                    .reset_index()
+                )
                 ss.columns = ["Shop", "Avg Score"]
-                fig = px.bar(ss, x="Avg Score", y="Shop", orientation="h",
-                             color="Avg Score",
-                             color_continuous_scale=[[0, C["secondary"]], [0.5, C["warning"]], [1, C["success"]]])
+                fig = px.bar(
+                    ss,
+                    x="Avg Score",
+                    y="Shop",
+                    orientation="h",
+                    color="Avg Score",
+                    color_continuous_scale=[
+                        [0, C["secondary"]],
+                        [0.5, C["warning"]],
+                        [1, C["success"]],
+                    ],
+                )
                 fig.update_layout(coloraxis_showscale=False)
                 fig = apply_theme(fig, "Shop Score Ranking", 380)
                 st.plotly_chart(fig, width="stretch")
@@ -592,7 +731,10 @@ elif page == "Shop Analysis":
 # ══════════════════════════════════════════════════════════════
 elif page == "ML Models":
     st.markdown('<div class="page-title">Machine Learning Models</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Classification and evaluation metrics for high-potential product prediction</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Classification and evaluation metrics for high-potential product prediction</div>',
+        unsafe_allow_html=True,
+    )
 
     rf = load_json("model_metrics.json")
     xgb = load_json("model_metrics_xgboost.json")
@@ -606,14 +748,25 @@ elif page == "ML Models":
     with tab1:
         models = []
         if rf:
-            models.append({"Model": "RandomForest", **{k: rf.get(k) for k in ["accuracy", "precision", "recall", "f1"]}})
+            models.append(
+                {
+                    "Model": "RandomForest",
+                    **{k: rf.get(k) for k in ["accuracy", "precision", "recall", "f1"]},
+                }
+            )
         if xgb:
-            models.append({"Model": "XGBoost", **{k: xgb.get(k) for k in ["accuracy", "precision", "recall", "f1"]}})
+            models.append(
+                {
+                    "Model": "XGBoost",
+                    **{k: xgb.get(k) for k in ["accuracy", "precision", "recall", "f1"]},
+                }
+            )
 
         if models:
             st.dataframe(
                 pd.DataFrame(models).style.format(
-                    {k: "{:.3f}" for k in ["accuracy", "precision", "recall", "f1"]}),
+                    {k: "{:.3f}" for k in ["accuracy", "precision", "recall", "f1"]}
+                ),
                 height=120,
             )
 
@@ -621,13 +774,17 @@ elif page == "ML Models":
             fig = go.Figure()
             colors = [C["primary"], C["accent"]]
             for i, m in enumerate(models):
-                fig.add_trace(go.Bar(
-                    name=m["Model"], x=met,
-                    y=[m.get(k, 0) for k in met],
-                    marker_color=colors[i % 2],
-                    text=[f"{m.get(k, 0):.3f}" for k in met],
-                    textposition="outside", textfont_size=11,
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        name=m["Model"],
+                        x=met,
+                        y=[m.get(k, 0) for k in met],
+                        marker_color=colors[i % 2],
+                        text=[f"{m.get(k, 0):.3f}" for k in met],
+                        textposition="outside",
+                        textfont_size=11,
+                    )
+                )
             fig.update_layout(barmode="group", yaxis_range=[0, 1.12])
             fig = apply_theme(fig, "Model Comparison", 400)
             st.plotly_chart(fig, width="stretch")
@@ -635,9 +792,14 @@ elif page == "ML Models":
     with tab2:
         if rf.get("feature_importance"):
             fi = pd.DataFrame(rf["feature_importance"]).sort_values("importance")
-            fig = px.bar(fi, x="importance", y="feature", orientation="h",
-                         color="importance",
-                         color_continuous_scale=[[0, C["primary"]], [1, C["success"]]])
+            fig = px.bar(
+                fi,
+                x="importance",
+                y="feature",
+                orientation="h",
+                color="importance",
+                color_continuous_scale=[[0, C["primary"]], [1, C["success"]]],
+            )
             fig.update_layout(coloraxis_showscale=False, yaxis_title=None)
             fig = apply_theme(fig, "RandomForest — Feature Importance", 380)
             st.plotly_chart(fig, width="stretch")
@@ -649,9 +811,14 @@ elif page == "ML Models":
             if metrics.get("confusion_matrix"):
                 cm = np.array(metrics["confusion_matrix"])
                 labels = ["Negative", "Positive"]
-                fig = px.imshow(cm, text_auto=True, x=labels, y=labels,
-                                color_continuous_scale=[[0, "#0E1117"], [1, C["primary"]]],
-                                labels=dict(x="Predicted", y="Actual", color="Count"))
+                fig = px.imshow(
+                    cm,
+                    text_auto=True,
+                    x=labels,
+                    y=labels,
+                    color_continuous_scale=[[0, "#0E1117"], [1, C["primary"]]],
+                    labels=dict(x="Predicted", y="Actual", color="Count"),
+                )
                 fig = apply_theme(fig, f"{name} — Confusion Matrix", 320)
                 st.plotly_chart(fig, width="stretch")
 
@@ -661,7 +828,10 @@ elif page == "ML Models":
 # ══════════════════════════════════════════════════════════════
 elif page == "Segmentation":
     st.markdown('<div class="page-title">Product Segmentation</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Unsupervised clustering for catalog structure analysis</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Unsupervised clustering for catalog structure analysis</div>',
+        unsafe_allow_html=True,
+    )
 
     tab1, tab2 = st.tabs(["KMeans Clustering", "DBSCAN Anomalies"])
 
@@ -671,8 +841,14 @@ elif page == "Segmentation":
 
         if not pca.empty and "cluster" in pca.columns:
             pca["cluster"] = pca["cluster"].astype(str)
-            fig = px.scatter(pca, x="pc1", y="pc2", color="cluster",
-                             color_discrete_sequence=C["palette"], opacity=0.7)
+            fig = px.scatter(
+                pca,
+                x="pc1",
+                y="pc2",
+                color="cluster",
+                color_discrete_sequence=C["palette"],
+                opacity=0.7,
+            )
             fig.update_traces(marker=dict(size=7, line=dict(width=0.5, color="rgba(0,0,0,0.3)")))
             fig = apply_theme(fig, "PCA Projection — KMeans Clusters", 480)
             fig.update_layout(xaxis_title="PC 1", yaxis_title="PC 2")
@@ -684,16 +860,23 @@ elif page == "Segmentation":
                     sizes = clusters["cluster"].value_counts().reset_index()
                     sizes.columns = ["Cluster", "Size"]
                     sizes["Cluster"] = sizes["Cluster"].astype(str)
-                    fig = px.pie(sizes, values="Size", names="Cluster", hole=0.55,
-                                 color_discrete_sequence=C["palette"])
+                    fig = px.pie(
+                        sizes,
+                        values="Size",
+                        names="Cluster",
+                        hole=0.55,
+                        color_discrete_sequence=C["palette"],
+                    )
                     fig.update_traces(textposition="inside", textinfo="percent+label")
                     fig = apply_theme(fig, "Cluster Distribution", 320)
                     st.plotly_chart(fig, width="stretch")
                 with cb:
                     if "score" in clusters.columns:
-                        cs = clusters.groupby("cluster").agg(
-                            count=("cluster", "size"), avg_score=("score", "mean")
-                        ).reset_index()
+                        cs = (
+                            clusters.groupby("cluster")
+                            .agg(count=("cluster", "size"), avg_score=("score", "mean"))
+                            .reset_index()
+                        )
                         cs.columns = ["Cluster", "Products", "Avg Score"]
                         st.dataframe(cs.style.format({"Avg Score": "{:.3f}"}), height=260)
         else:
@@ -703,7 +886,9 @@ elif page == "Segmentation":
         dbscan = load_csv("dbscan_clusters.csv")
         if not dbscan.empty and "dbscan_cluster" in dbscan.columns:
             n_out = int((dbscan["dbscan_cluster"] == -1).sum())
-            n_cl = dbscan["dbscan_cluster"].nunique() - (1 if -1 in dbscan["dbscan_cluster"].values else 0)
+            n_cl = dbscan["dbscan_cluster"].nunique() - (
+                1 if -1 in dbscan["dbscan_cluster"].values else 0
+            )
 
             c1, c2, c3 = st.columns(3)
             c1.metric("Clusters", n_cl)
@@ -714,8 +899,13 @@ elif page == "Segmentation":
             ds.columns = ["Cluster", "Count"]
             ds["Cluster"] = ds["Cluster"].astype(str)
             ds["Type"] = ds["Cluster"].apply(lambda x: "Outlier" if x == "-1" else "Cluster")
-            fig = px.bar(ds, x="Cluster", y="Count", color="Type",
-                         color_discrete_map={"Outlier": C["secondary"], "Cluster": C["primary"]})
+            fig = px.bar(
+                ds,
+                x="Cluster",
+                y="Count",
+                color="Type",
+                color_discrete_map={"Outlier": C["secondary"], "Cluster": C["primary"]},
+            )
             fig = apply_theme(fig, "DBSCAN Cluster Distribution", 340)
             st.plotly_chart(fig, width="stretch")
 
@@ -732,7 +922,10 @@ elif page == "Segmentation":
 # ══════════════════════════════════════════════════════════════
 elif page == "Association Rules":
     st.markdown('<div class="page-title">Association Rules</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">Apriori-mined patterns across categories, platforms, and price buckets</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Apriori-mined patterns across categories, platforms, and price buckets</div>',
+        unsafe_allow_html=True,
+    )
 
     rules = load_csv("association_rules.csv")
     if rules.empty:
@@ -741,7 +934,10 @@ elif page == "Association Rules":
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Rules", f"{len(rules):,}")
-    c2.metric("Avg Confidence", f"{rules['confidence'].mean():.2f}" if "confidence" in rules.columns else "—")
+    c2.metric(
+        "Avg Confidence",
+        f"{rules['confidence'].mean():.2f}" if "confidence" in rules.columns else "—",
+    )
     c3.metric("Avg Lift", f"{rules['lift'].mean():.2f}" if "lift" in rules.columns else "—")
 
     tab1, tab2 = st.tabs(["Scatter Plot", "Rules Table"])
@@ -749,8 +945,11 @@ elif page == "Association Rules":
     with tab1:
         if all(c in rules.columns for c in ["support", "confidence", "lift"]):
             fig = px.scatter(
-                rules.head(300), x="support", y="confidence",
-                size="lift", color="lift",
+                rules.head(300),
+                x="support",
+                y="confidence",
+                size="lift",
+                color="lift",
                 color_continuous_scale=[[0, C["primary"]], [0.5, C["accent"]], [1, C["success"]]],
                 hover_data=[c for c in ["antecedents", "consequents"] if c in rules.columns],
                 opacity=0.7,
@@ -760,11 +959,18 @@ elif page == "Association Rules":
             st.plotly_chart(fig, width="stretch")
 
     with tab2:
-        cols = [c for c in ["antecedents", "consequents", "support", "confidence", "lift"] if c in rules.columns]
+        cols = [
+            c
+            for c in ["antecedents", "consequents", "support", "confidence", "lift"]
+            if c in rules.columns
+        ]
         sorted_r = rules.sort_values("lift", ascending=False) if "lift" in rules.columns else rules
         st.dataframe(
-            sorted_r[cols].head(50).style.format({"support": "{:.3f}", "confidence": "{:.3f}", "lift": "{:.2f}"})
-            if cols else sorted_r.head(50),
+            sorted_r[cols]
+            .head(50)
+            .style.format({"support": "{:.3f}", "confidence": "{:.3f}", "lift": "{:.2f}"})
+            if cols
+            else sorted_r.head(50),
             height=500,
         )
 
@@ -774,7 +980,10 @@ elif page == "Association Rules":
 # ══════════════════════════════════════════════════════════════
 elif page == "LLM Insights":
     st.markdown('<div class="page-title">LLM Executive Summary</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-subtitle">AI-generated insights using structured analytics data via MCP architecture</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">AI-generated insights using structured analytics data via MCP architecture</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         """<div style="background: #1C2129; border-radius: 8px; padding: 16px 20px;
@@ -807,6 +1016,7 @@ elif page == "LLM Insights":
 
     with st.expander("LLM Usage Log"):
         from src.config import analytics_dir as _adir
+
         lp = _adir() / "llm_usage_log.jsonl"
         if lp.exists():
             for line in lp.read_text().strip().split("\n")[-5:]:

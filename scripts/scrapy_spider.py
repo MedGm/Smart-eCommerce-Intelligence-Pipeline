@@ -13,7 +13,6 @@ Or from Python:
     python scripts/scrapy_spider.py
 """
 
-import os
 import sys
 
 try:

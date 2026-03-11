@@ -1,13 +1,12 @@
 """Tests for feature engineering."""
 
 import pandas as pd
-import numpy as np
 from src.features.build_features import (
+    build_features,
     discount_pct,
+    is_in_stock,
     price_zscore_by_category,
     rating_weighted_reviews,
-    is_in_stock,
-    build_features,
 )
 
 
@@ -25,10 +24,12 @@ def test_discount_pct_no_old_price():
 
 
 def test_price_zscore_by_category():
-    df = pd.DataFrame({
-        "price": [10.0, 20.0, 30.0, 100.0],
-        "category": ["A", "A", "A", "B"],
-    })
+    df = pd.DataFrame(
+        {
+            "price": [10.0, 20.0, 30.0, 100.0],
+            "category": ["A", "A", "A", "B"],
+        }
+    )
     result = price_zscore_by_category(df)
     assert len(result) == 4
     # Within category A, mean=20, std=10 → first is -1.0
@@ -48,22 +49,32 @@ def test_is_in_stock():
 
 
 def test_build_features_adds_columns():
-    df = pd.DataFrame({
-        "source_platform": ["shopify"],
-        "shop_name": ["TestShop"],
-        "product_id": ["p1"],
-        "title": ["Test Product"],
-        "description": ["A great product"],
-        "category": ["Electronics"],
-        "brand": ["Brand"],
-        "price": [99.99],
-        "old_price": [129.99],
-        "availability": ["in stock"],
-        "rating": [4.5],
-        "review_count": [10],
-    })
+    df = pd.DataFrame(
+        {
+            "source_platform": ["shopify"],
+            "shop_name": ["TestShop"],
+            "product_id": ["p1"],
+            "title": ["Test Product"],
+            "description": ["A great product"],
+            "category": ["Electronics"],
+            "brand": ["Brand"],
+            "price": [99.99],
+            "old_price": [129.99],
+            "availability": ["in stock"],
+            "rating": [4.5],
+            "review_count": [10],
+        }
+    )
     result = build_features(df)
-    for col in ["discount_pct", "price_zscore_by_category", "rating_weighted_reviews",
-                 "is_in_stock", "description_length", "title_length",
-                 "shop_product_count", "category_frequency", "popularity_proxy"]:
+    for col in [
+        "discount_pct",
+        "price_zscore_by_category",
+        "rating_weighted_reviews",
+        "is_in_stock",
+        "description_length",
+        "title_length",
+        "shop_product_count",
+        "category_frequency",
+        "popularity_proxy",
+    ]:
         assert col in result.columns, f"Missing feature column: {col}"

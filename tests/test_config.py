@@ -3,9 +3,7 @@
 import os
 from pathlib import Path
 
-import pytest
-
-from src.config import data_dir, raw_dir, processed_dir, analytics_dir, get_logger
+from src.config import analytics_dir, data_dir, get_logger, processed_dir, raw_dir
 
 
 def test_data_dir_default():

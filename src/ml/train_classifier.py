@@ -8,10 +8,7 @@ to avoid circular data leakage (they are derived from the same inputs).
 """
 
 import json
-import logging
 
-import numpy as np
-import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score,
@@ -75,9 +72,7 @@ def run():
 
     # Also fit on full data for feature importance
     clf.fit(X, y)
-    importance = sorted(
-        zip(features, clf.feature_importances_), key=lambda x: x[1], reverse=True
-    )
+    importance = sorted(zip(features, clf.feature_importances_), key=lambda x: x[1], reverse=True)
     metrics["feature_importance"] = [
         {"feature": f, "importance": round(float(v), 4)} for f, v in importance[:10]
     ]

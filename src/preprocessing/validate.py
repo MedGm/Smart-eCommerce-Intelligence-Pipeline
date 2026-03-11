@@ -4,14 +4,12 @@ Validation and logging of invalid/missing rows.
 
 import pandas as pd
 
-from src.config import processed_dir, get_logger
+from src.config import get_logger, processed_dir
 
 logger = get_logger(__name__)
 
 
-def validate_required(
-    df: pd.DataFrame, required: list[str] | None = None
-) -> pd.DataFrame:
+def validate_required(df: pd.DataFrame, required: list[str] | None = None) -> pd.DataFrame:
     """Keep rows that have non-null values for required columns. Log drops."""
     required = required or ["source_platform", "shop_name", "product_id", "title"]
     missing = [c for c in required if c not in df.columns]

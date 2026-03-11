@@ -23,13 +23,10 @@ import argparse
 import csv
 import re
 import time
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass
 from urllib.parse import urljoin
 
 import requests
-from bs4 import BeautifulSoup
-
 
 HEADERS = {
     "User-Agent": (
@@ -46,7 +43,7 @@ TIMEOUT = 12
 class ValidationResult:
     url: str
     reachable: bool
-    homepage_status: Optional[int]
+    homepage_status: int | None
     detected_platform: str
     shopify_collections_all_ok: bool
     shopify_products_hint: bool
@@ -60,7 +57,7 @@ class ValidationResult:
     notes: str
 
 
-def fetch(url: str) -> tuple[Optional[requests.Response], Optional[str]]:
+def fetch(url: str) -> tuple[requests.Response | None, str | None]:
     try:
         response = requests.get(
             url,
@@ -288,23 +285,15 @@ def validate_site(url: str) -> ValidationResult:
     notes = []
 
     if platform == "Shopify":
-        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(
-            normalized
-        )
+        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(normalized)
         notes.append(shopify_notes)
     elif platform == "WooCommerce":
-        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(
-            normalized
-        )
+        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(normalized)
         notes.append(woo_notes)
     else:
         # Test both lightly if unknown
-        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(
-            normalized
-        )
-        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(
-            normalized
-        )
+        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(normalized)
+        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(normalized)
         if shopify_collections_ok:
             platform = "Shopify?"
         elif woocommerce_store_api_ok:
@@ -342,7 +331,7 @@ def validate_site(url: str) -> ValidationResult:
 
 
 def load_targets(path: str) -> list[str]:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         lines = [line.strip() for line in f.readlines()]
     return [line for line in lines if line and not line.startswith("#")]
 
@@ -356,16 +345,10 @@ def save_results(path: str, results: list[ValidationResult]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Validate target Shopify/WooCommerce stores."
-    )
-    parser.add_argument(
-        "--input", required=True, help="Path to input file with one URL per line"
-    )
+    parser = argparse.ArgumentParser(description="Validate target Shopify/WooCommerce stores.")
+    parser.add_argument("--input", required=True, help="Path to input file with one URL per line")
     parser.add_argument("--output", required=True, help="CSV output path")
-    parser.add_argument(
-        "--sleep", type=float, default=1.0, help="Delay between sites in seconds"
-    )
+    parser.add_argument("--sleep", type=float, default=1.0, help="Delay between sites in seconds")
     args = parser.parse_args()
 
     targets = load_targets(args.input)
@@ -379,8 +362,7 @@ def main() -> None:
         result = validate_site(url)
         results.append(result)
         print(
-            f"  platform={result.detected_platform}, "
-            f"score={result.score:.1f}, keep={result.keep}"
+            f"  platform={result.detected_platform}, score={result.score:.1f}, keep={result.keep}"
         )
         time.sleep(args.sleep)
 

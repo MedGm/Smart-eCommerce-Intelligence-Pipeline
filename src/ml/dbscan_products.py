@@ -3,7 +3,6 @@ DBSCAN clustering for anomaly/outlier detection in the product catalog.
 Dossier: DBSCAN for detecting atypical products and price anomalies.
 """
 
-import pandas as pd
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
@@ -41,9 +40,7 @@ def run(eps: float = 1.5, min_samples: int = 5):
     n_noise = int((labels == -1).sum())
 
     cols = ["product_id", "title", "category", "shop_name", "dbscan_cluster"]
-    df[[c for c in cols if c in df.columns]].to_csv(
-        out_dir / "dbscan_clusters.csv", index=False
-    )
+    df[[c for c in cols if c in df.columns]].to_csv(out_dir / "dbscan_clusters.csv", index=False)
 
     logger.info(
         "DBSCAN done: %d clusters, %d noise/outlier points -> analytics/dbscan_clusters.csv",

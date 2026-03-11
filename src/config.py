@@ -7,16 +7,20 @@ import logging
 import os
 from pathlib import Path
 
+
 # ── Paths ──────────────────────────────────────────────────────
 def data_dir() -> Path:
     """Return the project data root (overridable via DATA_DIR env var)."""
     return Path(os.environ.get("DATA_DIR", "data"))
 
+
 def raw_dir() -> Path:
     return data_dir() / "raw"
 
+
 def processed_dir() -> Path:
     return data_dir() / "processed"
+
 
 def analytics_dir() -> Path:
     return data_dir() / "analytics"
@@ -25,6 +29,7 @@ def analytics_dir() -> Path:
 # ── Logging ────────────────────────────────────────────────────
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s — %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Create a named logger with consistent formatting."""

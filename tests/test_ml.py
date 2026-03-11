@@ -1,41 +1,50 @@
 """Tests for ML utilities and training modules."""
 
 import pandas as pd
-import numpy as np
-import pytest
 from src.ml.utils import get_feature_columns
 
 
 def _sample_df():
     """Create a sample DataFrame with typical feature columns."""
-    return pd.DataFrame({
-        "product_id": ["p1", "p2", "p3"],
-        "title": ["A", "B", "C"],
-        "description": ["desc", "desc", "desc"],
-        "category": ["cat1", "cat2", "cat1"],
-        "brand": ["b1", "b1", "b2"],
-        "shop_name": ["s1", "s1", "s2"],
-        "source_platform": ["shopify", "shopify", "woocommerce"],
-        "availability": ["in stock", "out of stock", "in stock"],
-        "geography": ["US", "US", "UK"],
-        "price": [10.0, 20.0, 30.0],
-        "old_price": [15.0, 20.0, 40.0],
-        "rating": [4.0, 3.0, 5.0],
-        "review_count": [10, 0, 50],
-        "discount_pct": [0.33, 0.0, 0.25],
-        "is_in_stock": [True, False, True],
-        "score": [0.8, 0.3, 0.9],
-        "popularity_proxy": [0.7, 0.2, 0.85],
-        "price_bucket": ["mid", "low", "high"],
-    })
+    return pd.DataFrame(
+        {
+            "product_id": ["p1", "p2", "p3"],
+            "title": ["A", "B", "C"],
+            "description": ["desc", "desc", "desc"],
+            "category": ["cat1", "cat2", "cat1"],
+            "brand": ["b1", "b1", "b2"],
+            "shop_name": ["s1", "s1", "s2"],
+            "source_platform": ["shopify", "shopify", "woocommerce"],
+            "availability": ["in stock", "out of stock", "in stock"],
+            "geography": ["US", "US", "UK"],
+            "price": [10.0, 20.0, 30.0],
+            "old_price": [15.0, 20.0, 40.0],
+            "rating": [4.0, 3.0, 5.0],
+            "review_count": [10, 0, 50],
+            "discount_pct": [0.33, 0.0, 0.25],
+            "is_in_stock": [True, False, True],
+            "score": [0.8, 0.3, 0.9],
+            "popularity_proxy": [0.7, 0.2, 0.85],
+            "price_bucket": ["mid", "low", "high"],
+        }
+    )
 
 
 def test_get_feature_columns_excludes_metadata():
     df = _sample_df()
     cols = get_feature_columns(df)
-    for excluded in ["product_id", "title", "description", "category", "brand",
-                     "shop_name", "source_platform", "availability", "geography",
-                     "price_bucket"]:
+    for excluded in [
+        "product_id",
+        "title",
+        "description",
+        "category",
+        "brand",
+        "shop_name",
+        "source_platform",
+        "availability",
+        "geography",
+        "price_bucket",
+    ]:
         assert excluded not in cols
 
 

@@ -9,13 +9,12 @@ to avoid circular data leakage.
 
 import json
 
-import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
-    confusion_matrix,
 )
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 

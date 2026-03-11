@@ -8,9 +8,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 
-def remove_duplicates(
-    df: pd.DataFrame, subset: list[str] | None = None
-) -> pd.DataFrame:
+def remove_duplicates(df: pd.DataFrame, subset: list[str] | None = None) -> pd.DataFrame:
     """Remove duplicate rows. Default: key on source_platform, shop_name, product_id."""
     key = subset or ["source_platform", "shop_name", "product_id"]
     return df.drop_duplicates(subset=key, keep="first").reset_index(drop=True)
@@ -35,14 +33,10 @@ def strip_html(text: str) -> str:
     return text.strip()
 
 
-def normalize_text_columns(
-    df: pd.DataFrame, columns: list[str] | None = None
-) -> pd.DataFrame:
+def normalize_text_columns(df: pd.DataFrame, columns: list[str] | None = None) -> pd.DataFrame:
     """Strip whitespace and residual HTML from text columns."""
     cols = columns or [
-        c
-        for c in ["title", "description", "category", "brand", "availability"]
-        if c in df.columns
+        c for c in ["title", "description", "category", "brand", "availability"] if c in df.columns
     ]
     out = df.copy()
     for c in cols:
@@ -69,9 +63,7 @@ def clean_categories(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     if "category" in out.columns:
         out["category"] = out["category"].fillna("").astype(str).str.strip().str.lower()
-        out.loc[out["category"].isin(["", "none", "nan", "unknown"]), "category"] = (
-            pd.NA
-        )
+        out.loc[out["category"].isin(["", "none", "nan", "unknown"]), "category"] = pd.NA
     return out
 
 
