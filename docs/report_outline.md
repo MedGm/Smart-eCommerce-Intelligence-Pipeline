@@ -22,7 +22,19 @@ Use this to structure the written/oral report and stay aligned with the dossier.
 - **Preprocessing:** Deduplication, normalization, validation, reproducibility.
 - **Feature engineering:** List of features, popularity proxy (no fake sales).
 - **Top-K scoring:** Formula (e.g. 0.35·rating + 0.30·reviews + 0.20·availability + 0.15·discount), Top-K overall / per category / per shop.
-- **ML/DM:** RandomForest (high-potential prediction), KMeans (segments), PCA (visualization), optional association rules.
+- **ML/DM:** 
+Top‑K scoring engine
+
+We compute an explainable Top‑K score for each product by combining normalized rating, review count, stock status and discount into a single scalar. On the current dataset this ranking naturally surfaces Dan‑O’s high‑discount merchandise and bundle products at the top of the list, while Ruggable products sit in the middle of the ranking due to missing numeric price and rating fields.
+
+RandomForest classifier (supervised)
+
+We then train a RandomForest classifier to predict whether a product is “high‑potential” (top 20 % by the multi‑factor score) from its engineered features. On our held‑out test split the model reaches perfect metrics (accuracy/precision/recall/F1 ≈ 1.0 on 44 test samples), which shows that the current features separate high‑ vs low‑score products very cleanly, but also means the results must be interpreted cautiously given the limited sample size.
+
+KMeans clustering (unsupervised)
+
+Using KMeans on standardized features we obtain four product clusters with a silhouette score of about 0.43, indicating a reasonably coherent segmentation. The clusters roughly distinguish higher‑priced merchandise and large bundles from cheaper core seasonings and small accessories, giving an interpretable product segmentation that we reuse in the PCA visualization and dashboard.
+
 - **Orchestration:** Local pipeline, Kubeflow-compatible design.
 - **Dashboard:** Pages (overview, Top-K, shop comparison, segmentation, LLM insights).
 - **LLM:** Role limited to summaries from aggregated metrics; no raw fact invention.
