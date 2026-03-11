@@ -1,11 +1,21 @@
 """
 LLM summarizer: consumes aggregated metrics only (top products, cluster summaries, etc.).
 Logs prompt inputs and data source for responsible design.
+
+Phase 5 expects a Gemini (or Gemini-compatible) client:
+- we read a generic LLM_API_KEY or GEMINI_API_KEY from the environment
+- the actual HTTP call remains a TODO so that the pipeline runs without secrets.
 """
 
 import json
 import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+# Charge les variables depuis .env (GEMINI_API_KEY, etc.) si présent
+load_dotenv()
 
 
 def _data_dir() -> Path:
@@ -28,26 +38,43 @@ def _log_usage(source: str, prompt_preview: str, response_preview: str) -> None:
 
 def generate_summary(structured_data: dict) -> str:
     """
-    Call OpenAI-compatible API (or local LLM) with structured_data only.
+    Call Gemini-compatible API (or local LLM) with structured_data only.
+
     structured_data should contain: top_categories, best_shop, cluster_summary, etc.
     Returns generated text; logs usage.
     """
     from src.llm.prompts import EXECUTIVE_SUMMARY_PROMPT
 
-    prompt = EXECUTIVE_SUMMARY_PROMPT.format(data=json.dumps(structured_data, indent=2))
-    # Placeholder: no API key by default; return static message so pipeline/dashboard don't break
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY")
+    prompt = EXECUTIVE_SUMMARY_PROMPT.format(
+        data=json.dumps(structured_data, indent=2)
+    )
+    # No key → ne pas casser le dashboard, juste expliquer comment activer
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("LLM_API_KEY")
     if not api_key:
-        out = "(LLM summary disabled: no API key. Set OPENAI_API_KEY or LLM_API_KEY and use your client here.)"
+        out = (
+            "(LLM summary disabled: set GEMINI_API_KEY in your environment to enable "
+            "Gemini 3 Flash.)"
+        )
         _log_usage("none", prompt[:200], out)
         return out
-    # TODO(Ismail): add actual API call (openai or httpx to OpenAI-compatible endpoint)
-    # response = client.chat.completions.create(...)
-    # out = response.choices[0].message.content
-    # _log_usage("openai", prompt[:200], out[:200])
-    out = "(LLM integration placeholder.)"
-    _log_usage("placeholder", prompt[:200], out)
-    return out
+
+    # Appel réel à l'API Gemini via google-genai
+    try:
+        from google import genai
+
+        client = genai.Client(api_key=api_key)
+        # Use a currently supported text model; good default for summaries.
+        # See: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+        out = getattr(response, "text", "") or str(response)
+        _log_usage("gemini", prompt[:200], out)
+        return out
+    except Exception as exc:  # pragma: no cover - garde le dashboard robuste
+        out = f"(LLM error: {exc})"
+        _log_usage("gemini_error", prompt[:200], out)
+        return out
 
 
 def run():

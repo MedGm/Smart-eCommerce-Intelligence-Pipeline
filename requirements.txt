@@ -20,9 +20,10 @@ scikit-learn>=1.3.0
 streamlit>=1.28.0
 plotly>=5.18.0
 
-# LLM (OpenAI-compatible or local)
+# LLM (Gemini / OpenAI-compatible or local)
 # openai>=1.0.0
 # httpx>=0.25.0
+google-genai>=1.66.0
 
 # Pipeline / orchestration
 # kfp>=2.4.0       # optional, for Kubeflow

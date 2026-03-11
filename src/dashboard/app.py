@@ -22,6 +22,13 @@ def load_topk():
     return pd.DataFrame()
 
 
+def load_topk_per_shop():
+    p = _data_dir() / "analytics" / "topk_per_shop.csv"
+    if p.exists():
+        return pd.read_csv(p)
+    return pd.DataFrame()
+
+
 def load_clusters():
     p = _data_dir() / "analytics" / "clusters.csv"
     if p.exists():
@@ -75,18 +82,23 @@ else:
 
 # --- Shop comparison ---
 st.header("3. Shop comparison")
-if not df_f.empty and "shop_name" in df_f.columns and "score" in df_f.columns:
-    shop_scores = (
-        df_f.groupby("shop_name")
-        .agg({"score": "mean", "product_id": "count"})
-        .reset_index()
+topk_shop = load_topk_per_shop()
+if not topk_shop.empty:
+    # Expect columns like: shop_name, score, product_count (see scoring script)
+    # Rename for nicer display if needed
+    display_df = topk_shop.rename(
+        columns={
+            "shop_name": "Shop",
+            "score": "Avg score",
+            "product_count": "Product count",
+        }
     )
-    shop_scores.columns = ["Shop", "Avg score", "Product count"]
     st.dataframe(
-        shop_scores.sort_values("Avg score", ascending=False), use_container_width=True
+        display_df.sort_values("Avg score", ascending=False),
+        use_container_width=True,
     )
 else:
-    st.info("Run pipeline with features and scoring for shop comparison.")
+    st.info("Run pipeline with features and scoring for shop comparison (topk_per_shop.csv).")
 
 # --- Product segmentation (PCA) ---
 st.header("4. Product segmentation")
