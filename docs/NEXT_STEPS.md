@@ -67,7 +67,7 @@ Use this as your checklist. Tick items as you go. Target: **18 May**.
 | # | Who | Action | Done |
 |---|-----|--------|------|
 | 5.1 | Ismail | **Polish Streamlit pages** in `src/dashboard/app.py`: Overview, Top-K, Shop comparison, Segmentation (PCA), LLM Insights. Add filters (category, shop) where useful. | ☐ |
-| 5.2 | Ismail | **Connect LLM:** In `src/llm/summarizer.py`, add real API call (OpenAI or compatible) using aggregated data only. Keep logging of prompt/response. | ☐ |
+| 5.2 | Ismail | **Connect LLM:** In `src/llm/summarizer.py`, add real API call (Gemini or compatible) using aggregated data only. Keep logging of prompt/response. | ☐ |
 | 5.3 | Ismail | **Demo run:** Record or rehearse a &lt;5 min flow: open dashboard → show KPIs → Top-K → clusters → LLM summary. | ☐ |
 | 5.4 | Mohamed | **Smoke test:** Run `make pipeline` then `make dashboard` on your machine; confirm no broken paths and that every number traces to pipeline outputs. | ☐ |
 
