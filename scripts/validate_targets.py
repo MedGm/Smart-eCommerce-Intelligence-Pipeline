@@ -118,10 +118,10 @@ def detect_platform(html: str, headers: dict[str, str]) -> str:
 def has_pagination_hint(html: str) -> bool:
     patterns = [
         r'rel=["\']next["\']',
-        r'page=\d+',
-        r'/page/\d+',
-        r'pagination',
-        r'next page',
+        r"page=\d+",
+        r"/page/\d+",
+        r"pagination",
+        r"next page",
     ]
     html_lower = html.lower()
     return any(re.search(p, html_lower) for p in patterns)
@@ -288,15 +288,23 @@ def validate_site(url: str) -> ValidationResult:
     notes = []
 
     if platform == "Shopify":
-        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(normalized)
+        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(
+            normalized
+        )
         notes.append(shopify_notes)
     elif platform == "WooCommerce":
-        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(normalized)
+        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(
+            normalized
+        )
         notes.append(woo_notes)
     else:
         # Test both lightly if unknown
-        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(normalized)
-        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(normalized)
+        shopify_collections_ok, shopify_products_hint, shopify_notes = test_shopify(
+            normalized
+        )
+        woocommerce_store_api_ok, woocommerce_shop_ok, woo_notes = test_woocommerce(
+            normalized
+        )
         if shopify_collections_ok:
             platform = "Shopify?"
         elif woocommerce_store_api_ok:
@@ -348,10 +356,16 @@ def save_results(path: str, results: list[ValidationResult]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Validate target Shopify/WooCommerce stores.")
-    parser.add_argument("--input", required=True, help="Path to input file with one URL per line")
+    parser = argparse.ArgumentParser(
+        description="Validate target Shopify/WooCommerce stores."
+    )
+    parser.add_argument(
+        "--input", required=True, help="Path to input file with one URL per line"
+    )
     parser.add_argument("--output", required=True, help="CSV output path")
-    parser.add_argument("--sleep", type=float, default=1.0, help="Delay between sites in seconds")
+    parser.add_argument(
+        "--sleep", type=float, default=1.0, help="Delay between sites in seconds"
+    )
     args = parser.parse_args()
 
     targets = load_targets(args.input)

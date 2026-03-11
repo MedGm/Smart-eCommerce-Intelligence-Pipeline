@@ -1,64 +1,40 @@
 """
 Supervised model: predict high-potential product (top 20% by heuristic score).
-Baseline: RandomForestClassifier. Optional: XGBoost comparison.
+Baseline: RandomForestClassifier.
+Uses cross-validation for robust metrics (fixes F1=1.0 artifact from small data).
+
+NOTE: The 'score' and 'popularity_proxy' columns are excluded from features
+to avoid circular data leakage (they are derived from the same inputs).
 """
 
 import json
-import os
-from pathlib import Path
+import logging
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
-    confusion_matrix,
 )
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
+from src.config import analytics_dir, get_logger
+from src.ml.utils import get_feature_columns, load_features
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data"))
-
-
-def get_feature_columns(df: pd.DataFrame) -> list[str]:
-    """Numeric features for training (exclude ids, text, target)."""
-    exclude = {
-        "product_id",
-        "product_url",
-        "title",
-        "description",
-        "scraped_at",
-        "source_platform",
-        "shop_name",
-        "category",
-        "brand",
-        "availability",
-        "geography",
-        "price_bucket",
-        "high_potential",
-    }
-    return [
-        c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude
-    ]
+logger = get_logger(__name__)
 
 
 def run():
-    root = _data_dir()
-    processed_dir = root / "processed"
-    analytics_dir = root / "analytics"
-    analytics_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = analytics_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    in_path = processed_dir / "features.parquet"
-    if not in_path.exists():
-        print("No features.parquet. Run features step first.")
-        return
-    df = pd.read_parquet(in_path)
+    df = load_features()
     if df.empty or len(df) < 20:
-        print("Not enough data for training.")
+        logger.warning("Not enough data for training (%d rows).", len(df))
         return
 
     if "score" not in df.columns:
@@ -66,28 +42,53 @@ def run():
 
         df["score"] = compute_score(df)
     df["high_potential"] = (df["score"] >= df["score"].quantile(0.80)).astype(int)
-    features = get_feature_columns(df)
+
+    # exclude_score=True prevents data leakage
+    features = get_feature_columns(df, exclude_score=True)
     if not features:
-        print("No numeric features found.")
+        logger.warning("No numeric features found.")
         return
+
     X = df[features].fillna(0)
     y = df["high_potential"]
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
+
+    # Cross-validation for robust metrics (avoids F1=1.0 artifact on small data)
+    cv = StratifiedKFold(
+        n_splits=min(5, max(2, y.value_counts().min())), shuffle=True, random_state=42
+    )
+    y_pred_cv = cross_val_predict(clf, X, y, cv=cv)
+
     metrics = {
-        "accuracy": float(accuracy_score(y_test, y_pred)),
-        "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_test, y_pred, zero_division=0)),
-        "f1": float(f1_score(y_test, y_pred, zero_division=0)),
-        "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
+        "model": "RandomForest",
+        "method": "cross_validation",
+        "n_samples": len(df),
+        "n_features": len(features),
+        "features": features,
+        "accuracy": float(accuracy_score(y, y_pred_cv)),
+        "precision": float(precision_score(y, y_pred_cv, zero_division=0)),
+        "recall": float(recall_score(y, y_pred_cv, zero_division=0)),
+        "f1": float(f1_score(y, y_pred_cv, zero_division=0)),
+        "confusion_matrix": confusion_matrix(y, y_pred_cv).tolist(),
     }
-    with open(analytics_dir / "model_metrics.json", "w") as f:
+
+    # Also fit on full data for feature importance
+    clf.fit(X, y)
+    importance = sorted(
+        zip(features, clf.feature_importances_), key=lambda x: x[1], reverse=True
+    )
+    metrics["feature_importance"] = [
+        {"feature": f, "importance": round(float(v), 4)} for f, v in importance[:10]
+    ]
+
+    with open(out_dir / "model_metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
-    print("Classifier trained. Metrics -> analytics/model_metrics.json")
+    logger.info(
+        "RF trained (CV). accuracy=%.3f f1=%.3f -> analytics/model_metrics.json",
+        metrics["accuracy"],
+        metrics["f1"],
+    )
     return clf, metrics
 
 

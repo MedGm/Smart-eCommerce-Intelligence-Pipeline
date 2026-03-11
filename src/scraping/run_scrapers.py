@@ -1,40 +1,76 @@
 """
-Orchestrator: run Shopify and WooCommerce scrapers in sequence, write raw JSON.
+Orchestrator: run all Shopify and WooCommerce scrapers from stores.py config.
+Saves raw JSON per store, then combines into platform-level files.
 """
 
-import os
+from __future__ import annotations
+
+import json
 from pathlib import Path
 
+from src.config import data_dir, get_logger
 from src.scraping.base import ProductRecord
 from src.scraping.shopify import ShopifyScraper
+from src.scraping.stores import SHOPIFY_STORES, WOOCOMMERCE_STORES
 from src.scraping.woocommerce import WooCommerceScraper
 
-
-def _data_dir() -> Path:
-    base = os.environ.get("DATA_DIR", "data")
-    return Path(base)
+logger = get_logger(__name__)
 
 
 def run():
-    root = _data_dir()
-    raw = root / "raw"
+    raw = data_dir() / "raw"
     all_records: list[ProductRecord] = []
 
+    # ── Shopify stores ──
     shopify_dir = raw / "shopify"
-    shopify = ShopifyScraper(shopify_dir, store_url=os.environ.get("SHOPIFY_STORE"))
-    records = shopify.scrape()
-    if records:
-        shopify.save(records, "products.json")
-        all_records.extend(records)
+    shopify_dir.mkdir(parents=True, exist_ok=True)
+    shopify_all: list[dict] = []
 
+    for store in SHOPIFY_STORES:
+        scraper = ShopifyScraper(
+            output_dir=shopify_dir,
+            store_url=store["url"],
+            shop_name=store["name"],
+            geography=store.get("geography"),
+            collections=store.get("collections", ["all"]),
+        )
+        records = scraper.scrape()
+        if records:
+            safe_name = store["name"].lower().replace(" ", "_").replace("'", "")
+            scraper.save(records, f"{safe_name}.json")
+            shopify_all.extend([r.to_dict() for r in records])
+            all_records.extend(records)
+
+    with open(shopify_dir / "products.json", "w", encoding="utf-8") as f:
+        json.dump(shopify_all, f, indent=2, ensure_ascii=False)
+
+    # ── WooCommerce stores ──
     wc_dir = raw / "woocommerce"
-    wc = WooCommerceScraper(wc_dir, site_url=os.environ.get("WOOCOMMERCE_URL"))
-    records = wc.scrape()
-    if records:
-        wc.save(records, "products.json")
-        all_records.extend(records)
+    wc_dir.mkdir(parents=True, exist_ok=True)
+    wc_all: list[dict] = []
 
-    print(f"Scraping done: {len(all_records)} products total.")
+    for store in WOOCOMMERCE_STORES:
+        scraper = WooCommerceScraper(
+            output_dir=wc_dir,
+            site_url=store["url"],
+            shop_name=store["name"],
+            geography=store.get("geography"),
+        )
+        records = scraper.scrape()
+        if records:
+            safe_name = store["name"].lower().replace(" ", "_").replace("'", "")
+            scraper.save(records, f"{safe_name}.json")
+            wc_all.extend([r.to_dict() for r in records])
+            all_records.extend(records)
+
+    with open(wc_dir / "products.json", "w", encoding="utf-8") as f:
+        json.dump(wc_all, f, indent=2, ensure_ascii=False)
+
+    logger.info(
+        "Scraping done: %d products total across %d stores.",
+        len(all_records),
+        len(SHOPIFY_STORES) + len(WOOCOMMERCE_STORES),
+    )
     return all_records
 
 

@@ -4,14 +4,11 @@ Top-K scoring engine. Explainable formula:
 Compute Top-K overall, per category, per shop.
 """
 
-import os
-from pathlib import Path
-
 import pandas as pd
 
+from src.config import processed_dir, analytics_dir, get_logger
 
-def _data_dir() -> Path:
-    return Path(os.environ.get("DATA_DIR", "data"))
+logger = get_logger(__name__)
 
 
 # Weights (document for oral defense)
@@ -85,28 +82,27 @@ def topk_per_shop(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
 
 
 def run(k_overall: int = 50, k_per: int = 10):
-    root = _data_dir()
-    processed_dir = root / "processed"
-    analytics_dir = root / "analytics"
-    analytics_dir.mkdir(parents=True, exist_ok=True)
+    p_dir = processed_dir()
+    a_dir = analytics_dir()
+    a_dir.mkdir(parents=True, exist_ok=True)
 
-    in_path = processed_dir / "features.parquet"
+    in_path = p_dir / "features.parquet"
     if not in_path.exists():
-        print("No features.parquet. Run features step first.")
+        logger.warning("No features.parquet. Run features step first.")
         return
     df = pd.read_parquet(in_path)
     if df.empty:
-        print("Empty features. Skipping scoring.")
+        logger.warning("Empty features. Skipping scoring.")
         return
     df = df.copy()
     df["score"] = compute_score(df)
 
-    topk_overall(df, k_overall).to_csv(analytics_dir / "topk_products.csv", index=False)
+    topk_overall(df, k_overall).to_csv(a_dir / "topk_products.csv", index=False)
     topk_per_category(df, k_per).to_csv(
-        analytics_dir / "topk_per_category.csv", index=False
+        a_dir / "topk_per_category.csv", index=False
     )
-    topk_per_shop(df, k_per).to_csv(analytics_dir / "topk_per_shop.csv", index=False)
-    print("Scoring done: topk_products.csv, topk_per_category.csv, topk_per_shop.csv")
+    topk_per_shop(df, k_per).to_csv(a_dir / "topk_per_shop.csv", index=False)
+    logger.info("Scoring done: topk_products.csv, topk_per_category.csv, topk_per_shop.csv")
     return df
 
 

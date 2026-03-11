@@ -13,20 +13,23 @@ pyarrow>=14.0.0
 
 # ML / Data mining
 scikit-learn>=1.3.0
-# xgboost>=2.0.0   # optional
-# mlxtend>=0.23.0  # optional, for association rules
+xgboost>=2.0.0
+mlxtend>=0.23.0
 
 # Dashboard
 streamlit>=1.28.0
 plotly>=5.18.0
+altair>=5.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
 
-# LLM (Gemini / OpenAI-compatible or local)
-# openai>=1.0.0
-# httpx>=0.25.0
+# LLM (Gemini / OpenAI-compatible)
 google-genai>=1.66.0
+# openai>=1.0.0          # optional: for OpenAI adapter
+# langchain>=0.1.0       # optional: for LangChain demo
 
 # Pipeline / orchestration
-kfp>=2.4.0       # optional, for Kubeflow
+kfp>=2.4.0
 
 # Dev & CI
 pytest>=7.4.0

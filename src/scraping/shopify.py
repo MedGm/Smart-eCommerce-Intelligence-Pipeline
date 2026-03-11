@@ -1,212 +1,295 @@
 """
-Shopify scraper adapter.
+Shopify scraper adapter (multi-store, with product detail enrichment).
 
-For this project we target Ruggable (https://ruggable.com).
+Strategy:
+1. Playwright: crawl collection pages, scroll for lazy-load, extract product slugs.
+2. requests: for each slug, fetch /products/<slug>.json for structured data
+   (price, description, category, rating, variants).
+3. Map to ProductRecord.
 
-Ruggable est assez dynamique côté frontend, donc on utilise Playwright pour
-laisser le navigateur charger le contenu, puis on extrait les liens produits
-depuis la page rendue.
+This covers dossier tools: Playwright (dynamic), requests (static), BeautifulSoup (fallback).
 """
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
-from urllib.parse import urljoin
+from typing import List
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
+import requests
+from bs4 import BeautifulSoup
 
 from src.scraping.base import BaseScraper, ProductRecord
+from src.config import SCRAPING_DELAY, SCRAPING_TIMEOUT, DEFAULT_USER_AGENT
+
+HEADERS = {
+    "User-Agent": DEFAULT_USER_AGENT,
+}
 
 
 class ShopifyScraper(BaseScraper):
-    """Scrape product data from a Shopify store (Ruggable storefront)."""
+    """Scrape product data from a Shopify store."""
 
-    def __init__(self, output_dir: Path, store_url: str | None = None):
+    def __init__(
+        self,
+        output_dir: Path,
+        store_url: str = "",
+        shop_name: str = "Unknown",
+        geography: str | None = None,
+        collections: list[str] | None = None,
+    ):
         super().__init__(output_dir)
-        # Normalise URL (no trailing slash)
-        self.store_url = (store_url or "").rstrip("/")
+        self.store_url = store_url.rstrip("/")
+        self.shop_name = shop_name
+        self.geography = geography
+        self.collections = collections or ["all"]
 
     def _collection_urls(self) -> list[str]:
-        """
-        Return a small curated list of collection/listing URLs to crawl.
+        return [f"{self.store_url}/collections/{c}" for c in self.collections]
 
-        Ruggable exposes many collections; here we start with a few generic
-        ones. You can add more if you need more volume.
-        """
-        base = self.store_url
-        return [
-            f"{base}/collections/all",
-            f"{base}/collections/area-rugs",
-            f"{base}/collections/runner-rugs",
-        ]
-
-    def _extract_from_anchor(
-        self, href: str, text: str
-    ) -> Tuple[str | None, str | None, float | None, int | None]:
-        """
-        Extract (url, title, price, review_count) from a product anchor.
-
-        Ruggable's collection cards often contain something like:
-
-            Verena Dark Wood Rug
-
-            4103 Reviews
-
-            $119 - $1299
-
-        We parse this text to recover a clean title, an approximate price
-        (min of the range) and the review_count.
-        """
-        if not href or "/products/" not in href:
-            return None, None, None, None
-        product_url = urljoin(self.store_url, href)
-        if not text:
-            return product_url, None, None, None
-
-        # Split on lines and strip empties
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-
-        title = None
-        review_count: int | None = None
-        price: float | None = None
-
-        # 1) Detect review count (e.g. "4103 Reviews")
-        import re
-
-        for ln in lines:
-            m = re.search(r"(\d[\d,\.]*)\s+Reviews", ln, flags=re.IGNORECASE)
-            if m:
-                num = m.group(1).replace(",", "")
-                try:
-                    review_count = int(float(num))
-                except ValueError:
-                    review_count = None
-                break
-
-        # 2) Detect price (min of a range like "$119 - $1299" or single "$119")
-        for ln in lines:
-            if "$" in ln or "€" in ln or "£" in ln:
-                m = re.search(r"[\$€£]\s*([\d,\.]+)", ln)
-                if m:
-                    num = m.group(1).replace(",", "")
-                    try:
-                        price = float(num)
-                    except ValueError:
-                        price = None
-                break
-
-        # 3) Title: first line that does not look like "X Reviews" or price
-        candidate_title = None
-        for ln in lines:
-            if "reviews" in ln.lower():
-                continue
-            if any(sym in ln for sym in ("$", "€", "£")):
-                continue
-            candidate_title = ln
-            break
-
-        title = (candidate_title or lines[0]).strip()[:200]
-
-        return product_url, title, price, review_count
-
-    def scrape(self) -> List[ProductRecord]:
-        """
-        Storefront scraper for Ruggable using Playwright.
-
-        Stratégie :
-        - ouvrir quelques pages de collections
-        - scroller pour charger les produits
-        - récupérer tous les liens vers `/products/...`
-        - déduire un `product_id` à partir du slug d'URL
-        """
-        if not self.store_url:
-            print("ShopifyScraper: no store_url configured, skipping.")
+    def _extract_product_slugs_playwright(self) -> list[dict]:
+        """Use Playwright to crawl collections and extract product slugs + collection context."""
+        try:
+            from playwright.sync_api import sync_playwright
+            from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+        except ImportError:
+            print(
+                f"  [{self.shop_name}] Playwright not installed, skipping dynamic scraping."
+            )
             return []
 
-        records: List[ProductRecord] = []
-        seen_ids: set[str] = set()
-        now = datetime.now(timezone.utc).isoformat()
-        shop_name = "Ruggable"
+        results = []
+        seen_slugs: set[str] = set()
 
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
-                context = browser.new_context(
-                    user_agent=(
-                        "Mozilla/5.0 (X11; Linux x86_64) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0 Safari/537.36"
-                    )
-                )
+                context = browser.new_context(user_agent=HEADERS["User-Agent"])
                 page = context.new_page()
 
                 for collection_url in self._collection_urls():
+                    collection_name = collection_url.rstrip("/").split("/")[-1]
                     try:
-                        print(f"ShopifyScraper: visiting collection {collection_url}")
+                        print(f"  [{self.shop_name}] Crawling {collection_url}")
                         page.goto(
                             collection_url,
                             timeout=40_000,
                             wait_until="domcontentloaded",
                         )
                     except PlaywrightTimeoutError:
-                        print(f"ShopifyScraper: timeout loading {collection_url}")
+                        print(f"  [{self.shop_name}] Timeout: {collection_url}")
                         continue
 
-                    # Scroll pour laisser le temps aux produits de se charger (lazy-load)
-                    for _ in range(6):
+                    for _ in range(8):
                         page.mouse.wheel(0, 2000)
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(800)
 
                     anchors = page.query_selector_all("a[href*='/products/']")
-                    print(
-                        f"ShopifyScraper: found {len(anchors)} product anchors on {collection_url}"
-                    )
-
                     for a in anchors:
                         href = a.get_attribute("href") or ""
-                        text = a.inner_text() or ""
-                        (
-                            product_url,
-                            title,
-                            price,
-                            review_count,
-                        ) = self._extract_from_anchor(href, text)
-                        if not product_url or not title:
+                        if "/products/" not in href:
                             continue
-
-                        slug = product_url.rstrip("/").split("/")[-1]
-                        product_id = slug or product_url
-
-                        if product_id in seen_ids:
-                            continue
-                        seen_ids.add(product_id)
-
-                        record = ProductRecord(
-                            source_platform="shopify",
-                            shop_name=shop_name,
-                            product_id=product_id,
-                            product_url=product_url,
-                            title=title,
-                            description="",  # pourra être enrichi plus tard
-                            category=None,
-                            brand="Ruggable",
-                            price=price,
-                            old_price=None,
-                            availability=None,
-                            rating=None,
-                            review_count=review_count,
-                            geography=None,
-                            scraped_at=now,
+                        slug = (
+                            href.split("/products/")[-1]
+                            .split("?")[0]
+                            .split("#")[0]
+                            .rstrip("/")
                         )
-                        records.append(record)
+                        if not slug or slug in seen_slugs:
+                            continue
+                        seen_slugs.add(slug)
+                        results.append({"slug": slug, "collection": collection_name})
+
+                    print(
+                        f"  [{self.shop_name}] Found {len(anchors)} anchors, {len(seen_slugs)} unique slugs so far"
+                    )
 
                 browser.close()
+        except Exception as exc:
+            print(f"  [{self.shop_name}] Playwright error: {exc}")
 
-        except Exception as exc:  # pragma: no cover - protection simple
-            print(f"ShopifyScraper: unexpected error with Playwright: {exc}")
+        return results
 
-        print(f"ShopifyScraper: fetched {len(records)} products from {self.store_url}")
+    def _fetch_product_json(self, slug: str) -> dict | None:
+        """Fetch structured product data from Shopify's /products/<slug>.json endpoint."""
+        url = f"{self.store_url}/products/{slug}.json"
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("product", data)
+        except (requests.RequestException, ValueError):
+            pass
+        return None
+
+    def _fetch_product_html_fallback(self, slug: str) -> dict:
+        """Fallback: parse product page HTML with BS4 for meta tags / JSON-LD."""
+        url = f"{self.store_url}/products/{slug}"
+        fields: dict = {}
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp.status_code != 200:
+                return fields
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            meta_desc = soup.find("meta", attrs={"name": "description"})
+            if meta_desc and meta_desc.get("content"):
+                fields["description"] = meta_desc["content"].strip()[:500]
+
+            og_price = soup.find("meta", attrs={"property": "og:price:amount"})
+            if og_price and og_price.get("content"):
+                try:
+                    fields["price"] = float(og_price["content"])
+                except (ValueError, TypeError):
+                    pass
+
+            og_avail = soup.find("meta", attrs={"property": "og:availability"})
+            if og_avail and og_avail.get("content"):
+                fields["availability"] = og_avail["content"]
+
+            import json as _json
+
+            for script in soup.find_all("script", type="application/ld+json"):
+                try:
+                    ld = _json.loads(script.string or "")
+                    if isinstance(ld, dict) and ld.get("@type") == "Product":
+                        agg = ld.get("aggregateRating") or {}
+                        if agg.get("ratingValue"):
+                            fields["rating"] = float(agg["ratingValue"])
+                        if agg.get("reviewCount"):
+                            fields["review_count"] = int(agg["reviewCount"])
+                        if ld.get("category"):
+                            fields["category"] = str(ld["category"])
+                except (ValueError, TypeError, _json.JSONDecodeError):
+                    continue
+        except requests.RequestException:
+            pass
+        return fields
+
+    def _product_json_to_record(
+        self, pdata: dict, slug: str, collection: str, now: str
+    ) -> ProductRecord | None:
+        """Convert Shopify product JSON to ProductRecord."""
+        title = pdata.get("title", "").strip()
+        if not title:
+            return None
+
+        body_html = pdata.get("body_html") or ""
+        description = (
+            BeautifulSoup(body_html, "html.parser")
+            .get_text(separator=" ")
+            .strip()[:1000]
+        )
+
+        category = pdata.get("product_type") or None
+        if not category or category.strip() == "":
+            category = (
+                collection.replace("-", " ").title() if collection != "all" else None
+            )
+
+        brand = pdata.get("vendor") or self.shop_name
+
+        price: float | None = None
+        old_price: float | None = None
+        variants = pdata.get("variants") or []
+        if variants:
+            v = variants[0]
+            try:
+                price = float(v.get("price", 0))
+            except (ValueError, TypeError):
+                pass
+            cap = v.get("compare_at_price")
+            if cap:
+                try:
+                    old_price = float(cap)
+                except (ValueError, TypeError):
+                    pass
+
+        availability = None
+        if variants:
+            available_count = sum(1 for v in variants if v.get("available"))
+            availability = "in stock" if available_count > 0 else "out of stock"
+
+        product_id = str(pdata.get("id", slug))
+        product_url = f"{self.store_url}/products/{slug}"
+
+        return ProductRecord(
+            source_platform="shopify",
+            shop_name=self.shop_name,
+            product_id=product_id,
+            product_url=product_url,
+            title=title,
+            description=description,
+            category=category,
+            brand=brand,
+            price=price,
+            old_price=old_price,
+            availability=availability,
+            rating=None,
+            review_count=None,
+            geography=self.geography,
+            scraped_at=now,
+        )
+
+    def scrape(self) -> List[ProductRecord]:
+        if not self.store_url:
+            print("ShopifyScraper: no store_url configured, skipping.")
+            return []
+
+        print(f"ShopifyScraper: starting {self.shop_name} ({self.store_url})")
+        now = datetime.now(timezone.utc).isoformat()
+        records: List[ProductRecord] = []
+
+        slug_info = self._extract_product_slugs_playwright()
+        print(
+            f"  [{self.shop_name}] Collected {len(slug_info)} product slugs, enriching..."
+        )
+
+        for i, info in enumerate(slug_info):
+            slug = info["slug"]
+            collection = info["collection"]
+
+            pdata = self._fetch_product_json(slug)
+            if pdata:
+                record = self._product_json_to_record(pdata, slug, collection, now)
+                if record:
+                    # Try to get rating from HTML fallback (JSON endpoint doesn't have ratings)
+                    html_fields = self._fetch_product_html_fallback(slug)
+                    if html_fields.get("rating") is not None:
+                        record.rating = html_fields["rating"]
+                    if html_fields.get("review_count") is not None:
+                        record.review_count = html_fields["review_count"]
+                    records.append(record)
+            else:
+                html_fields = self._fetch_product_html_fallback(slug)
+                if html_fields:
+                    record = ProductRecord(
+                        source_platform="shopify",
+                        shop_name=self.shop_name,
+                        product_id=slug,
+                        product_url=f"{self.store_url}/products/{slug}",
+                        title=slug.replace("-", " ").title(),
+                        description=html_fields.get("description", ""),
+                        category=collection.replace("-", " ").title()
+                        if collection != "all"
+                        else None,
+                        brand=self.shop_name,
+                        price=html_fields.get("price"),
+                        old_price=None,
+                        availability=html_fields.get("availability"),
+                        rating=html_fields.get("rating"),
+                        review_count=html_fields.get("review_count"),
+                        geography=self.geography,
+                        scraped_at=now,
+                    )
+                    records.append(record)
+
+            if (i + 1) % 20 == 0:
+                print(
+                    f"  [{self.shop_name}] Enriched {i + 1}/{len(slug_info)} products"
+                )
+            time.sleep(SCRAPING_DELAY)
+
+        print(f"ShopifyScraper: {self.shop_name} done — {len(records)} products")
         return records
