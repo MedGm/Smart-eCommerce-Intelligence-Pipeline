@@ -98,7 +98,9 @@ if not topk_shop.empty:
         use_container_width=True,
     )
 else:
-    st.info("Run pipeline with features and scoring for shop comparison (topk_per_shop.csv).")
+    st.info(
+        "Run pipeline with features and scoring for shop comparison (topk_per_shop.csv)."
+    )
 
 # --- Product segmentation (PCA) ---
 st.header("4. Product segmentation")

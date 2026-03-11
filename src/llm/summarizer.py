@@ -45,9 +45,7 @@ def generate_summary(structured_data: dict) -> str:
     """
     from src.llm.prompts import EXECUTIVE_SUMMARY_PROMPT
 
-    prompt = EXECUTIVE_SUMMARY_PROMPT.format(
-        data=json.dumps(structured_data, indent=2)
-    )
+    prompt = EXECUTIVE_SUMMARY_PROMPT.format(data=json.dumps(structured_data, indent=2))
     # No key → ne pas casser le dashboard, juste expliquer comment activer
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("LLM_API_KEY")
     if not api_key:
