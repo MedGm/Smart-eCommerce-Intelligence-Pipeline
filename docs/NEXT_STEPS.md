@@ -14,7 +14,7 @@ Use this as your checklist. Tick items as you go. Target: **18 May**.
 | # | Who | Action | Done |
 |---|-----|--------|------|
 | 1.1 | Both | **Agree on scope freeze:** no new blocks, no new sources beyond Shopify + WooCommerce. | ☑ |
-| 1.2 | Both | **Pick 1–2 real target shops** (one Shopify, one WooCommerce) for scraping. Write URLs in `docs/target_shops.md` or in `.env.example` comments. | ☐ |
+| 1.2 | Both | **Pick 1–2 real target shops** (one Shopify, one WooCommerce) for scraping. Write URLs in `docs/target_shops.md` or in `.env` comments. _Locked: Shopify = Ruggable, WooCommerce = Dan-O's Seasoning._ | ☑ |
 | 1.3 | Mohamed | **Add architecture diagram** in `docs/diagrams/` (draw.io or Mermaid). Refer to it in the report. | ☐ |
 | 1.4 | Both | **Create `develop` branch.** Work on feature branches, merge into `develop`, then `main` when stable. | ☐ |
 | 1.5 | Both | **Optional:** Create GitHub issues for Phase 2–5 so you have a backlog. | ☐ |
@@ -27,9 +27,9 @@ Use this as your checklist. Tick items as you go. Target: **18 May**.
 
 | # | Who | Action | Done |
 |---|-----|--------|------|
-| 2.1 | Ismail | **Implement Shopify scraper** in `src/scraping/shopify.py`: fetch products (API or Playwright), map to `ProductRecord`, save to `data/raw/shopify/products.json`. | ☐ |
-| 2.2 | Ismail | **Implement WooCommerce scraper** in `src/scraping/woocommerce.py`: same idea, save to `data/raw/woocommerce/products.json`. | ☐ |
-| 2.3 | Ismail | **Run `make scrape`** and get **at least 300–500 product records total** (combined). Log broken/missing fields; don’t fake data. | ☐ |
+| 2.1 | Ismail | **Implement Shopify scraper** in `src/scraping/shopify.py`: fetch products (API or Playwright), map to `ProductRecord`, save to `data/raw/shopify/products.json`. | ☑ |
+| 2.2 | Ismail | **Implement WooCommerce scraper** in `src/scraping/woocommerce.py`: same idea, save to `data/raw/woocommerce/products.json`. | ☑ |
+| 2.3 | Ismail | **Run `make scrape`** and get **at least 300–500 product records total** (combined). Log broken/missing fields; don't fake data. | ☑ |
 | 2.4 | Mohamed | **Quick review:** Check that raw JSON matches `ProductRecord` fields and that `make preprocess` runs without errors. | ☐ |
 
 **Definition of done:** `data/raw/shopify/` and/or `data/raw/woocommerce/` contain real product JSON; pipeline runs from raw → processed.
