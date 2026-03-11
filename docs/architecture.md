@@ -44,7 +44,7 @@
 
 | Block | Role | Owner (suggested) |
 |-------|------|-------------------|
-| Scraping | Shopify + WooCommerce adapters, shared `ProductRecord` schema | Ismail |
+| Scraping | A2A agents for Shopify (Playwright storefront) and WooCommerce (Store API), shared `ProductRecord` schema | Ismail |
 | Storage | raw/ JSON, processed/ Parquet, analytics/ CSV + plots | Mohamed |
 | Preprocessing | Dedupe, normalize, validate, cleaned_products + feature_table | Mohamed |
 | Feature engineering | discount_pct, price_zscore, popularity_proxy, etc. | Mohamed |
@@ -81,15 +81,43 @@ data/
     clusters.csv
     model_metrics.json
     association_rules.csv  (optional)
+    pca_viz.csv
+    topk_per_category.csv
+    topk_per_shop.csv
 ```
+
+## Orchestration (local + Kubeflow Pipelines)
+
+The pipeline exists in two forms:
+
+- **Local Python pipeline** (`src/pipeline/local_pipeline.py`): runs all stages
+  sequentially on the developer machine:
+  `scrape -> preprocess -> feature engineering -> score -> train -> cluster -> LLM summary`.
+- **Kubeflow Pipelines version** (`src/pipeline/kubeflow_pipeline.py` +
+  `kubeflow_smart_ecommerce_pipeline.yaml`): wraps the core ML stages into KFP
+  components:
+
+  - `preprocess_op` → call `src.preprocessing.run.run`
+  - `features_op` → call `src.features.build_features.run`
+  - `score_op` → call `src.scoring.topk.run`
+  - `train_classifier_op` → call `src.ml.train_classifier.run`
+
+These components are wired in the `smart_ecommerce_pipeline` DAG and compiled
+with `kfp.compiler.Compiler` into a YAML spec that can be uploaded to a
+Kubeflow Pipelines instance (e.g. on Minikube or Kind). This satisfies the
+dossier’s requirement for a reproducible ML pipeline orchestrated with
+Kubeflow, while keeping local development simple.
 
 ## MCP-inspired responsible design (lightweight)
 
-- **Host:** Streamlit app.
-- **Client:** Internal LLM integration module.
-- **Servers/tools:** Analytics output reader, summary generator, optional scraper trigger.
-- **Permissions:** Read-only access to processed data; no unrestricted file execution.
-- **Logs:** Record prompt inputs/outputs and data source used for each summary.
+- **Host (MCP Host):** Streamlit app (BI dashboard) that orchestrates user interactions and displays outputs.
+- **Client (MCP Client):** Internal LLM integration module (`src/llm/summarizer.py`) which calls the LLM and routes tool outputs.
+- **Servers/tools (MCP Servers):**
+  - Analytics output reader (CSV/Parquet readers for Top-K tables, clusters, metrics).
+  - Summary generator (LLM-based narrative over structured analytics).
+  - Optional scraper trigger / pipeline launcher (local only).
+- **Permissions:** The LLM client only has **read-only** access to processed analytics data. It cannot execute arbitrary code, write to the filesystem beyond append-only logs, or modify scores or raw data. All business logic (scoring, ML, filtering) remains outside the LLM.
+- **Logs:** Prompt inputs and truncated responses are persisted in `data/analytics/llm_usage_log.jsonl` with timestamps. This provides traceability for each generated insight and supports later audits in the spirit of the Model Context Protocol.
 
 No full MCP implementation required; this satisfies the dossier’s “responsible architecture” expectation.
 
