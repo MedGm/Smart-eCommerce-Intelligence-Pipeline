@@ -4,6 +4,7 @@ data/processed/*.parquet
 data/processed/*.csv
 data/analytics/*.csv
 data/analytics/*.json
+data/analytics/*.jsonl
 data/analytics/*.png
 !data/raw/.gitkeep
 !data/processed/.gitkeep
@@ -11,7 +12,11 @@ data/analytics/*.png
 
 # Env and secrets
 .env
+.env.*
+!.env.example
 *.pem
+*.key
+*.crt
 
 # Python
 .venv/
@@ -42,8 +47,12 @@ notebooks/.ipynb_checkpoints/
 *.log
 logs/
 
+# Generated pipeline artifacts
+kubeflow_smart_ecommerce_pipeline.yaml
+
 # Validator output (keep candidates list, ignore results)
 scripts/target_results.csv
+scripts/target_results_v2.csv
 
 
 

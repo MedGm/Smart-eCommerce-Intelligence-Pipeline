@@ -35,41 +35,73 @@ def _log_usage(source: str, prompt_preview: str, response_preview: str) -> None:
     logger.debug("LLM usage logged: source=%s", source)
 
 
-def generate_summary(structured_data: dict) -> str:
-    """
-    Call Gemini-compatible API (or local LLM) with structured_data only.
-
-    structured_data should contain: top_categories, best_shop, cluster_summary, etc.
-    Returns generated text; logs usage.
-    """
-    from src.llm.prompts import EXECUTIVE_SUMMARY_PROMPT
-
-    prompt = EXECUTIVE_SUMMARY_PROMPT.format(data=json.dumps(structured_data, indent=2))
-    # No key → ne pas casser le dashboard, juste expliquer comment activer
+def _call_llm(prompt: str, source_tag: str = "gemini") -> str:
+    """Core function to call Gemini API and log usage."""
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("LLM_API_KEY")
     if not api_key:
-        out = (
-            "(LLM summary disabled: set GEMINI_API_KEY in your environment to enable "
-            "Gemini 3 Flash.)"
-        )
+        out = "(LLM disabled: set GEMINI_API_KEY in your environment to enable.)"
         _log_usage("none", prompt[:200], out)
         return out
 
-    # Appel réel à l'API Gemini via google-genai
     try:
         from google import genai
 
         client = genai.Client(api_key=api_key)
-        # Use a currently supported text model; good default for summaries.
-        # See: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         out = getattr(response, "text", "") or str(response)
-        _log_usage("gemini", prompt[:200], out)
+        _log_usage(source_tag, prompt[:200], out)
         return out
-    except Exception as exc:  # pragma: no cover - garde le dashboard robuste
+    except Exception as exc:  # pragma: no cover
         out = f"(LLM error: {exc})"
-        _log_usage("gemini_error", prompt[:200], out)
+        _log_usage(f"{source_tag}_error", prompt[:200], out)
         return out
+
+
+def generate_summary(structured_data: dict) -> str:
+    """Generate 3-sentence executive summary."""
+    from src.llm.prompts import EXECUTIVE_SUMMARY_PROMPT
+
+    prompt = EXECUTIVE_SUMMARY_PROMPT.format(data=json.dumps(structured_data, indent=2))
+    return _call_llm(prompt, "gemini_summary")
+
+
+def generate_strategy_report(structured_data: dict) -> str:
+    """Generate a Chain-of-Thought strategic report."""
+    from src.llm.prompts import CHAIN_OF_THOUGHT_PROMPT
+
+    prompt = CHAIN_OF_THOUGHT_PROMPT.format(data=json.dumps(structured_data, indent=2))
+    return _call_llm(prompt, "gemini_strategy")
+
+
+def generate_product_profile(top_products_json: str) -> str:
+    """Generate a cohesive customer profile & competitive analysis of top 5 products."""
+    from src.llm.prompts import PRODUCT_COMPARISON_PROMPT
+
+    prompt = PRODUCT_COMPARISON_PROMPT.format(data=top_products_json)
+    return _call_llm(prompt, "gemini_profiling")
+
+
+def chat_with_data(query: str, context: dict, history: list[dict]) -> str:
+    """Handle interactive chat using current BI context."""
+    history_str = "\\n".join(
+        [f"{msg['role'].capitalize()}: {msg['content']}" for msg in history[-3:]]
+    )
+    context_str = json.dumps(context, indent=2)
+
+    prompt = f"""You are an expert eCommerce AI Assistant embedded in a BI Dashboard.
+You answer user questions accurately based ONLY on the current context provided below.
+Do not hallucinate products or numbers.
+
+Current Dashboard Context:
+{context_str}
+
+Recent Chat History:
+{history_str}
+
+User Question: {query}
+Answer concisely and professionally:"""
+
+    return _call_llm(prompt, "gemini_chat")
 
 
 def run():
