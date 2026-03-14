@@ -1,106 +1,135 @@
 # Project status & next steps — Mohamed & Ismail
 
 **Repo:** [github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline](https://github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline)  
-**Deadline:** 18 May
+**Status date:** 14 March 2026
 
 ---
 
-## Current status (as of 11 March)
+## Current validated state
 
-### What is done
+### Quality gates
 
-| Étape | Status | Details |
-|-------|--------|---------|
-| 1. Scraping A2A | **Done (v2)** | 8 stores, 565 products. Playwright + `/products/<slug>.json` enrichment, WC Store API (price fix), BS4, Scrapy/Storefront API/REST v3 demos |
-| 2. Top-K + ML/DM | **Done (v2)** | Top-K scoring, RF (CV F1=0.996), XGBoost (CV), KMeans (sil=0.261), DBSCAN (56 outliers), PCA, 874 association rules |
-| 3. Kubeflow | **Done** | local_pipeline.py (10 steps), KFP pipeline + compiled YAML |
-| 4. Dashboard BI | **Done (v2)** | Streamlit 8 sections (Plotly, Altair, Seaborn), real prices, category charts |
-| 5. LLM | **Done (v2)** | Gemini summarizer, OpenAI adapter, LangChain demo, prompt engineering, logging |
-| 6. MCP + CI/CD | **Done** | MCP Host/Client/Server in code, access logs, GitHub Actions (pytest + ruff), Docker |
+| Area | Status | Current result |
+|------|--------|----------------|
+| Tests | **Green** | 38/38 pytest tests passed |
+| Lint / format | **Green** | Ruff clean after auto-fixing formatting/import issues |
+| KFP compile | **Green** | 8-component DAG compiled successfully with `kfp==2.16.0` |
+| Local pipeline outputs | **Green** | Preprocess, features, score, RF, XGBoost, KMeans, DBSCAN, rules all produced artifacts |
+| Minikube / Kubeflow | **Green** | Latest workflow run succeeded on the fixed Minikube overlay |
+| Dashboard | **Green** | Streamlit dashboard responds on `localhost:8501` |
 
-### What was fixed in v2
+### Data and analytics snapshot
 
-| Problem (v1) | Fix applied | Result |
-|--------------|-------------|--------|
-| Shopify data hollow (92 products, no price/desc/category) | Added `/products/<slug>.json` enrichment | 161 Shopify products with price, description, category |
-| WC prices in cents (avg 1814) | Divide by `10^currency_minor_unit` | Avg price now ~$25 |
-| Ratings all zero | Extract from JSON-LD where available | 96 products (17%) now have real ratings |
-| 149/220 category = "none" | `product_type` + collection URL inference | 74% now have real categories |
-| Geography null everywhere | Assigned from store config | 100% coverage (US/UK) |
-| Only 220 products | Added 6 new stores | 565 products across 8 stores |
-| F1=1.0 artifact | Cross-validation (StratifiedKFold) | F1=0.996 (more realistic) |
-| HTML in descriptions | BS4 stripping in scraper + preprocessing | Clean text |
+| Stage | Current output |
+|-------|----------------|
+| Cleaned dataset | 634 rows × 15 columns |
+| Feature matrix | 634 rows × 25 columns |
+| Top-K ranking | 50 scored products |
+| RandomForest | accuracy = 0.9968, F1 = 0.9923 |
+| XGBoost | accuracy = 0.9984, F1 = 0.9962 |
+| KMeans | 4 clusters |
+| DBSCAN | 4 clusters, 55 noise points |
+| Association rules | 199 rules |
 
-### Remaining weaknesses
+### Platform state
 
-| Issue | Impact | Possible fix |
-|-------|--------|-------------|
-| 23% products lack prices | Features incomplete for those rows | Scrape specific collection pages; some stores block `.json` |
-| Ratings only 17% | Popularity proxy still discount-driven | Add stores with review widgets |
-| 146 "uncategorized" | Category analytics weaker | Scrape sub-collections instead of `/all` |
-| 565 < 2000 recommended | Limited ML generalization | Add 5–10 more stores |
-| Hiut Denim: 2 products | Negligible | Replace with larger store |
-
----
-
-## Improvement plan (priority order)
-
-### P1 — Fix data quality (critical, do first)
-
-| # | Who | Task |
-|---|-----|------|
-| 1.1 | Ismail | **Enrich Shopify products:** visit each product detail page (Playwright or BS4) and extract price, rating, review_count, description, category from the HTML / JSON-LD. Use `src/scraping/enrich_bs4.py` as a starting point. |
-| 1.2 | Ismail | **Fix WC price units:** divide price and old_price by 100 in `woocommerce.py` if the Store API returns cents (check `currency_minor_unit` field). |
-| 1.3 | Ismail | **Strip HTML from WC descriptions:** use `BeautifulSoup(desc, "html.parser").get_text()` in `woocommerce.py` before saving. |
-| 1.4 | Both | **Add more stores or scrape more products:** either add 1–2 more Shopify/WooCommerce stores, or scrape more collections from Ruggable. Target: **500+ products with real prices and categories.** |
-| 1.5 | Mohamed | **Fix "none" categories:** for Shopify, infer category from collection URL or product URL slug (e.g. `/collections/area-rugs` → category="area rugs"). For WooCommerce, map empty categories to "uncategorized" and keep real ones. |
-
-### P2 — Fix preprocessing & features
-
-| # | Who | Task |
-|---|-----|------|
-| 2.1 | Mohamed | **Re-run preprocessing** after data fixes. Check that price is now in dollars, ratings are non-zero where available, categories are meaningful. |
-| 2.2 | Mohamed | **Adjust popularity_proxy:** if ratings are still mostly zero, increase weight on review_count and discount, or add a text-length proxy (longer description = more effort = more likely a real product). |
-| 2.3 | Mohamed | **Re-run EDA notebook** and update the Phase 3.3 notes with real distributions. |
-
-### P3 — Fix ML/DM models
-
-| # | Who | Task |
-|---|-----|------|
-| 3.1 | Mohamed | **Re-train RF and XGBoost** after data fix. If F1 is still 1.0, increase test_size or use cross-validation (`cross_val_score`) to get a more realistic estimate. |
-| 3.2 | Mohamed | **Re-run KMeans and DBSCAN** on better features. Write 1–2 sentences per cluster (e.g. "premium rugs", "affordable seasonings", "discounted bundles"). |
-| 3.3 | Mohamed | **Re-run association rules.** With real categories, rules should be more interpretable (e.g. `{category:rugs} -> {platform:shopify}`). |
-
-### P4 — Fix dashboard
-
-| # | Who | Task |
-|---|-----|------|
-| 4.1 | Ismail | **Clean display:** strip HTML from titles/descriptions before showing in tables. |
-| 4.2 | Ismail | **Add filters:** category dropdown, shop selector, price range slider on the Top-K page. |
-| 4.3 | Ismail | **Format prices:** show prices in dollars (not cents). Add currency symbol. |
-| 4.4 | Both | **Take screenshots** for the report once data is clean. |
-
-### P5 — Polish for delivery
-
-| # | Who | Task |
-|---|-----|------|
-| 5.1 | Both | **Enable LLM summary:** set GEMINI_API_KEY in `.env` and verify the summary is coherent with the actual data. |
-| 5.2 | Mohamed | **Docker test:** run `docker compose --profile pipeline run app` and confirm it works. |
-| 5.3 | Both | **Write report** using `docs/report_outline.md`. |
-| 5.4 | Both | **Prepare oral defense:** 1–2 min per étape, be ready to explain every design choice. |
+| Capability | Current state |
+|-----------|----------------|
+| Scraping | Multi-store Shopify + WooCommerce collection is operational |
+| Local orchestration | `src/pipeline/local_pipeline.py` remains the full 10-step local flow |
+| Cluster orchestration | `src/pipeline/kubeflow_pipeline.py` runs the validated 8-stage analytics DAG |
+| Minikube deployment | Overlay + deployment script fix image registry and Argo RBAC issues |
+| LLM summary | Implemented, but live validation still depends on external Gemini API access |
+| MCP architecture | Implemented and wired into dashboard + summarizer |
 
 ---
 
-## Quick reference: commands
+## Enhancement phase priorities
+
+### Current sprint focus (agreed)
+
+#### Sprint item A — Kubeflow operator DX improvement
+
+Objective:
+- Make deploy + port-forward + verification close to one command for local operator workflows.
+
+Definition of done:
+- One command boots or updates the operator workflow.
+- Port-forwarding starts automatically or through a predictable subcommand.
+- Run verification is built in with explicit health/status output.
+- Failures stop early with useful diagnostics.
+- A short “happy path” developer guide is documented.
+
+#### Sprint item B — Scraper and data-quality hardening
+
+Objective:
+- Improve extraction robustness and data trustworthiness before downstream scoring/model runs.
+
+Definition of done:
+- Add validation rules for required fields and malformed records.
+- Improve deduplication and normalization.
+- Handle scraper edge cases (missing selectors, layout drift, partial responses).
+- Log data-quality issues with enough detail for quick debugging.
+- Add sample-based tests/fixtures for fragile scraping paths.
+
+---
+
+### P1 — Dashboard BI refinement
+
+| # | Owner | Task |
+|---|-------|------|
+| 1.1 | Both | Redesign the dashboard visual identity so it feels intentional and presentation-ready, not like a default Streamlit theme. |
+| 1.2 | Both | Improve the Top-K experience with stronger ranking storytelling, better KPI surfacing, and clearer visual hierarchy. |
+| 1.3 | Both | Add export-friendly, formatted views for ranked products and shop/category breakdowns. |
+| 1.4 | Both | Prepare polished screenshots for report/demo use once the new design is stable. |
+
+### P2 — Kubeflow operational polish (mapped to Sprint item A)
+
+| # | Owner | Task |
+|---|-------|------|
+| 2.1 | Mohamed | Keep `scripts/deploy_kfp_minikube.sh` as the single deployment path and improve operator-facing logs where useful. |
+| 2.2 | Mohamed | Make cluster run verification easier: workflow status, pod health, UI access, and artifact checks. |
+| 2.3 | Mohamed | Keep local/cluster parity strict whenever a new stage or artifact is introduced. |
+
+### P3 — Data enrichment and quality hardening (mapped to Sprint item B)
+
+| # | Owner | Task |
+|---|-------|------|
+| 3.1 | Ismail | Improve missing price/category/rating coverage for stores that still have partial metadata. |
+| 3.2 | Both | Add stronger stores or more category-rich collections to improve downstream model generalization. |
+| 3.3 | Mohamed | Re-run preprocessing and feature engineering after each meaningful scraper/data upgrade. |
+| 3.4 | Both | Add stricter malformed-record validation and explicit reject/repair paths. |
+| 3.5 | Both | Strengthen dedup + normalization rules across title/shop/category/url fields. |
+| 3.6 | Ismail | Add fixtures/tests for scraping paths that are sensitive to selector/layout drift. |
+
+### P4 — Model explainability and analytics clarity
+
+| # | Owner | Task |
+|---|-------|------|
+| 4.1 | Mohamed | Add short business-oriented interpretations for KMeans and DBSCAN segments. |
+| 4.2 | Mohamed | Improve communication of feature importance and score composition in the dashboard/report. |
+| 4.3 | Mohamed | Re-run rule mining and clustering after richer category coverage lands. |
+
+### P5 — Delivery polish
+
+| # | Owner | Task |
+|---|-------|------|
+| 5.1 | Both | Validate the Gemini summary end to end using the configured API key. |
+| 5.2 | Mohamed | Re-test the Docker path for the pipeline/dashboard packaging story. |
+| 5.3 | Both | Update the report and oral-defense narrative using the now-validated Minikube + dashboard flow. |
+
+---
+
+## Quick reference
 
 ```bash
-make scrape       # run Shopify + WooCommerce scrapers
-make preprocess   # clean + validate
-make features     # feature table
-make score        # Top-K
-make train        # RF + XGBoost + KMeans + DBSCAN + rules
-make pipeline     # full local run (10 steps)
-make dashboard    # Streamlit on :8501
-make test         # pytest
-make lint         # ruff check + format
+make scrape        # run Shopify + WooCommerce scrapers
+make preprocess    # clean + validate
+make features      # build feature table
+make score         # generate Top-K analytics outputs
+make train         # RF + KMeans local training shortcut
+make compile-kfp   # compile the Kubeflow pipeline spec
+make dashboard     # launch Streamlit on :8501
+make test          # pytest
+make lint          # ruff check + format --check
 ```

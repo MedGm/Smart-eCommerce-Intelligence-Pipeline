@@ -38,6 +38,26 @@ Run the provided MLOps deployment script:
 2. Runs `make compile-kfp` to compile the Python DAG into a standard `.yaml` file.
 3. Maps your local terminal to Minikube's internal Docker daemon using `eval $(minikube docker-env)`.
 4. Builds the `smart-ecommerce-pipeline:local` Docker image directly inside the cluster, avoiding the need for an external container registry like DockerHub.
+5. Applies the permanent Minikube overlay fixes stored under `manifests/overlays/minikube/`.
+
+### Validated current state
+
+As of 14 March 2026, this deployment path is working end to end:
+
+- Minikube cluster starts and remains healthy.
+- Kubeflow core services run in the `kubeflow` namespace.
+- The latest workflow run succeeded after the `sys.path.append("/app")` component fix.
+- The KFP UI is reachable through:
+
+```bash
+kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80
+```
+
+- The Streamlit dashboard can be launched locally in parallel with:
+
+```bash
+make dashboard
+```
 
 ### Step 3: Execute in Kubeflow
 Once the script completes successfully:

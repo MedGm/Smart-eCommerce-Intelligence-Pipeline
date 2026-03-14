@@ -59,12 +59,27 @@ Core flow:
 1. `make compile-kfp`
 2. `./scripts/deploy_kfp_minikube.sh`
 3. `kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
-4. Upload/Run `kubeflow_smart_ecommerce_pipeline.yaml`
+4. Upload/Run `kubeflow_smart_ecommerce_pipeline.yaml` (generated artifact; compile it instead of treating it as hand-edited source)
 5. Validate outputs in `data/analytics/`
 6. Validate app surface with `make dashboard`
 7. Run quality gates: `make test && make lint`
 
-## 5) Pipeline parity snapshot (current)
+## 5) Validated runtime state (14 March 2026)
+
+- `pytest` is green: 38/38 tests passed.
+- Ruff is clean after formatting/import fixes.
+- Local analytics outputs are validated: 634 cleaned rows, 634 feature rows, 50 Top-K products.
+- Current model/analytics snapshot:
+   - RF: accuracy `0.9968`, F1 `0.9923`
+   - XGBoost: accuracy `0.9984`, F1 `0.9962`
+   - KMeans: 4 clusters
+   - DBSCAN: 4 clusters, 55 noise points
+   - Association rules: 199 rules
+- Minikube/Kubeflow is operational with the overlay fixes applied.
+- Latest successful Kubeflow workflow confirms the fixed `src` import path behavior.
+- Streamlit dashboard is operational on `localhost:8501`; KFP UI is typically exposed on `localhost:8080` via port-forward.
+
+## 6) Pipeline parity snapshot (current)
 
 Current stage parity is aligned:
 - preprocess
@@ -79,13 +94,13 @@ Current stage parity is aligned:
 Intentional difference:
 - **Scraping** and **LLM summary** run outside KFP DAG by design.
 
-## 6) Known operational caveats
+## 7) Known operational caveats
 
-- The deployment script logs `:latest` in some messages while build tag is `:local`; rely on actual build command/tag, not log text.
 - Keep `manifests/base/kfp-upstream` symlink healthy (script manages it).
 - Ensure Minikube has sufficient resources (`--cpus 4 --memory 8192` minimum baseline in docs).
+- The LLM summary stage still depends on live Gemini API access; pipeline validation is otherwise green without that external call.
 
-## 7) Required references for new contributors
+## 8) Required references for new contributors
 
 Read in order:
 1. `docs/architecture.md`
@@ -99,3 +114,16 @@ Then inspect:
 - `src/pipeline/kubeflow_pipeline.py`
 - `src/pipeline/local_pipeline.py`
 - `scripts/deploy_kfp_minikube.sh`
+
+## 9) Immediate enhancement priorities (post-validation)
+
+1. **Kubeflow operator DX streamlining**
+   - Consolidate deploy/update + port-forward + run verification into a predictable developer flow.
+   - Ensure early-fail diagnostics and explicit success/health output.
+   - Keep a short happy-path guide synchronized with script behavior.
+
+2. **Scraper reliability and data-quality hardening**
+   - Tighten validation for required/malformed fields.
+   - Improve normalization and deduplication consistency.
+   - Handle extraction edge cases (selector drift, missing blocks, partial responses).
+   - Increase logging specificity and add fixture-based tests for fragile scraping paths.

@@ -26,20 +26,21 @@ Maps every tool mentioned in the dossier technique to where it is used in the pr
 
 | Dossier tool | Implementation | File |
 |-------------|----------------|------|
-| Kubeflow / kfp SDK | Pipeline definition (4 components) | `src/pipeline/kubeflow_pipeline.py` |
-| Compiled YAML | KFP pipeline spec | `kubeflow_smart_ecommerce_pipeline.yaml` |
+| Kubeflow / kfp SDK | Pipeline definition (8 components: preprocess, features, score, RF, XGBoost, KMeans, DBSCAN, rules) | `src/pipeline/kubeflow_pipeline.py` |
+| Compiled YAML | Generated KFP pipeline spec (compiled on demand, not source of truth) | `kubeflow_smart_ecommerce_pipeline.yaml` |
 | Docker | Containerization | `Dockerfile`, `docker-compose.yml` |
 | Local pipeline | 10-step Python orchestrator | `src/pipeline/local_pipeline.py` |
+| Minikube deployment | Automated local-cluster deployment and overlay application | `scripts/deploy_kfp_minikube.sh`, `manifests/overlays/minikube/` |
 
 ## Étape 4 — Dashboard BI
 
 | Dossier tool | Implementation | Where in dashboard |
 |-------------|----------------|-------------------|
 | Streamlit | Main framework | `src/dashboard/app.py` |
-| Plotly | PCA scatter plot | Section 4 (KMeans segmentation) |
-| Altair | Category bar chart | Section 1 (Overview) |
-| Seaborn | Price histogram | Section 1 (Overview) |
-| Matplotlib | Backend for Seaborn | Section 1 (Overview) |
+| Plotly | Top-K ranking, PCA scatter plot, shop analysis, model visuals | Multiple sections |
+| Altair | Category bar chart | Overview section |
+| Seaborn | Price histogram | Overview section |
+| Matplotlib | Backend for Seaborn | Overview section |
 
 ## Étape 5 — LLM
 
@@ -58,7 +59,7 @@ Maps every tool mentioned in the dossier technique to where it is used in the pr
 | MCP Client | LLM summarizer module | `src/llm/summarizer.py` |
 | MCP Server | AnalyticsReaderServer, SummaryGeneratorServer | `src/mcp/architecture.py` |
 | Permissions | Read-only, allowed-file list | `src/mcp/architecture.py` |
-| Logs | `llm_usage_log.jsonl`, `mcp_access_log.jsonl` | `data/analytics/` |
+| Logs | `llm_usage_log.jsonl`, `mcp_access_log.jsonl` runtime logs | `data/analytics/` |
 
 ## CI/CD transversal
 
@@ -66,4 +67,4 @@ Maps every tool mentioned in the dossier technique to where it is used in the pr
 |-------------|----------------|------|
 | GitHub Actions | Install, pytest, ruff | `.github/workflows/ci.yml` |
 | Docker | Pipeline + dashboard containers | `Dockerfile`, `docker-compose.yml` |
-| Tests | 9 unit tests | `tests/` |
+| Tests | 38 automated tests across config, preprocessing, features, ML, scoring, MCP, LLM and pipeline modules | `tests/` |
