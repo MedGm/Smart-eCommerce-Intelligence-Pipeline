@@ -59,7 +59,7 @@ def topk_per_category(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
         return pd.DataFrame()
     return (
         df.groupby("category", group_keys=False)
-        .apply(lambda g: g.nlargest(k, "score"))
+        .apply(lambda g: g.nlargest(k, "score"), include_groups=False)
         .reset_index(drop=True)
     )
 
@@ -68,7 +68,7 @@ def topk_per_shop(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
     key = ["source_platform", "shop_name"] if "shop_name" in df.columns else ["source_platform"]
     return (
         df.groupby(key, group_keys=False)
-        .apply(lambda g: g.nlargest(k, "score"))
+        .apply(lambda g: g.nlargest(k, "score"), include_groups=False)
         .reset_index(drop=True)
     )
 
