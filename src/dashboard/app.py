@@ -979,47 +979,118 @@ elif page == "Association Rules":
 # LLM INSIGHTS
 # ══════════════════════════════════════════════════════════════
 elif page == "LLM Insights":
-    st.markdown('<div class="page-title">LLM Executive Summary</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Advanced LLM Capabilities</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="page-subtitle">AI-generated insights using structured analytics data via MCP architecture</div>',
+        '<div class="page-subtitle">AI-generated BI strategies, product profiling, and interactive chat via secure MCP architecture</div>',
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """<div style="background: #1C2129; border-radius: 8px; padding: 16px 20px;
-        border-left: 3px solid #7C6EF6; font-size: 13px; color: #7D8590; margin-bottom: 20px;">
-        The LLM receives <strong style="color:#E6EDF3">only aggregated analytics</strong>
-        (category counts, score averages, cluster sizes) — never raw product data.
-        This follows the MCP principle of minimal data exposure.</div>""",
-        unsafe_allow_html=True,
+    tab_report, tab_chat, tab_mcp = st.tabs(
+        ["Strategic Reports", "BI Assistant (Chat)", "MCP Architecture"]
     )
 
-    if st.button("Generate Summary", type="primary"):
-        with st.spinner("Calling Gemini API..."):
-            summary = get_llm_summary()
-        st.markdown("---")
-        st.markdown(summary)
-    else:
-        st.info("Click the button above to generate a fresh executive summary.")
+    with tab_report:
+        st.markdown(
+            """<div style="background: #1C2129; border-radius: 8px; padding: 16px 20px;
+            border-left: 3px solid #7C6EF6; font-size: 13px; color: #7D8590; margin-bottom: 20px;">
+            The LLM receives <strong style="color:#E6EDF3">only aggregated pipelines outputs and top-K rows</strong>
+            — never the entire raw database.</div>""",
+            unsafe_allow_html=True,
+        )
 
-    with st.expander("MCP Architecture Details"):
+        c1, c2, c3 = st.columns(3)
+
+        if c1.button("Executive Summary", use_container_width=True):
+            with st.spinner("Calling Gemini API..."):
+                st.markdown("### Executive Summary")
+                st.info(get_llm_summary())
+
+        if c2.button("Strategic Recommendations", use_container_width=True):
+            with st.spinner("Generating Chain-of-Thought Strategy..."):
+                from src.llm.summarizer import generate_strategy_report
+
+                topk = load_csv("topk_products.csv")
+                data = {}
+                if not topk.empty:
+                    data = {
+                        "top_categories": topk["category"].value_counts().head(5).index.tolist()
+                        if "category" in topk.columns
+                        else [],
+                        "best_shop": topk.groupby("shop_name")["score"].mean().idxmax()
+                        if "shop_name" in topk.columns
+                        else "",
+                    }
+
+                st.markdown("### Marketing Strategy & Trends")
+                st.success(generate_strategy_report(data))
+
+        if c3.button("Competitive Profiling", use_container_width=True):
+            with st.spinner("Profiling Top Products..."):
+                from src.llm.summarizer import generate_product_profile
+
+                st.markdown("### Customer & Product Profile")
+                st.warning(generate_product_profile(mcp.get_top_products(5)))
+
+    with tab_chat:
+        st.markdown("Ask the AI Assistant questions about your eCommerce data.")
+
+        if "messages" not in st.session_state:
+            st.session_state.messages = [
+                {
+                    "role": "assistant",
+                    "content": "Hello! I am your eCommerce AI Assistant. How can I help you analyze the data today?",
+                }
+            ]
+
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        if prompt := st.chat_input("Ex: What are the 5 emerging products this week?"):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    from src.llm.summarizer import chat_with_data
+
+                    # Build live context
+                    topk = load_csv("topk_products.csv")
+                    ctx = {"top_products": mcp.get_top_products(5) if mcp else []}
+                    if not topk.empty and "category" in topk.columns:
+                        ctx["top_categories"] = topk["category"].value_counts().head(5).to_dict()
+
+                    response = chat_with_data(prompt, ctx, st.session_state.messages)
+                    st.markdown(response)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+
+    with tab_mcp:
+        st.markdown("### MCP Implementation details")
         st.markdown("""
 | Concept | Implementation |
 |---------|---------------|
 | **Host** | This Streamlit dashboard |
 | **Client** | `MCPClient` routes requests to servers |
-| **AnalyticsReader** | Read-only access to whitelisted CSV/JSON files |
+| **AnalyticsReader** | Read-only access to whitelisted CSV/JSON files, plus secure `get_top_products()` |
 | **SummaryGenerator** | LLM calls with structured input only |
 | **Permissions** | No raw data, no code execution, no score modification |
 | **Audit Logs** | `llm_usage_log.jsonl`, `mcp_access_log.jsonl` |
         """)
 
-    with st.expander("LLM Usage Log"):
-        from src.config import analytics_dir as _adir
+        with st.expander("LLM Usage Log", expanded=False):
+            import json
 
-        lp = _adir() / "llm_usage_log.jsonl"
-        if lp.exists():
-            for line in lp.read_text().strip().split("\n")[-5:]:
-                st.json(json.loads(line))
-        else:
-            st.info("No LLM usage log yet.")
+            from src.config import analytics_dir as _adir
+
+            lp = _adir() / "llm_usage_log.jsonl"
+            if lp.exists():
+                for line in lp.read_text().strip().split("\\n")[-5:]:
+                    line = line.strip()
+                    if line:
+                        try:
+                            st.json(json.loads(line))
+                        except json.JSONDecodeError:
+                            st.text(line)
+            else:
+                st.info("No LLM usage log yet.")

@@ -20,65 +20,89 @@ from __future__ import annotations
 from kfp import dsl
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def preprocess_op():
     """Run preprocessing step (from raw JSON to cleaned parquet)."""
+    import sys
+
+    sys.path.append("/app")
     from src.preprocessing.run import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def features_op():
     """Run feature engineering step (from cleaned to features parquet)."""
+    import sys
+
+    sys.path.append("/app")
     from src.features.build_features import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def score_op():
     """Run Top-K scoring and export analytics CSVs."""
+    import sys
+
+    sys.path.append("/app")
     from src.scoring.topk import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def train_classifier_op():
     """Train RandomForest classifier and export metrics."""
+    import sys
+
+    sys.path.append("/app")
     from src.ml.train_classifier import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def train_xgboost_op():
     """Train XGBoost classifier and export metrics."""
+    import sys
+
+    sys.path.append("/app")
     from src.ml.train_xgboost import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def cluster_kmeans_op():
     """Run KMeans clustering with PCA visualization."""
+    import sys
+
+    sys.path.append("/app")
     from src.ml.cluster_products import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def cluster_dbscan_op():
     """Run DBSCAN clustering for anomaly detection."""
+    import sys
+
+    sys.path.append("/app")
     from src.ml.dbscan_products import run
 
     run()
 
 
-@dsl.component
+@dsl.component(base_image="smart-ecommerce-pipeline:local")
 def association_rules_op():
     """Run Apriori association rules mining."""
+    import sys
+
+    sys.path.append("/app")
     from src.ml.rules import run
 
     run()

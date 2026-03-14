@@ -33,6 +33,10 @@ train:
 pipeline:
 	$(PYTHON) -m src.pipeline.local_pipeline
 
+compile-kfp:
+	$(PYTHON) -c "from kfp import compiler; from src.pipeline.kubeflow_pipeline import smart_ecommerce_pipeline; compiler.Compiler().compile(pipeline_func=smart_ecommerce_pipeline, package_path='kubeflow_smart_ecommerce_pipeline.yaml')"
+	@echo "✓ Compiled kubeflow_smart_ecommerce_pipeline.yaml"
+
 dashboard:
 	PYTHONPATH=. streamlit run src/dashboard/app.py --server.port 8501
 

@@ -44,7 +44,7 @@ class AnalyticsReaderServer:
 
     def list_tools(self) -> list[str]:
         """Declare available tools (MCP: tool declaration)."""
-        return ["read_analytics_file", "list_available_files"]
+        return ["read_analytics_file", "list_available_files", "get_top_products"]
 
     def list_available_files(self) -> list[str]:
         """List analytics files the client is allowed to read."""
@@ -62,6 +62,21 @@ class AnalyticsReaderServer:
             return None
         _log_access("READ", filename, "OK")
         return path.read_text(encoding="utf-8")
+
+    def get_top_products(self, limit: int = 5) -> str | None:
+        """Securely extract only the Top N products for LLM profiling."""
+        path = self.analytics_dir / "topk_products.csv"
+        if not path.exists():
+            return None
+        import pandas as pd
+
+        try:
+            df = pd.read_csv(path).head(limit)
+            _log_access("READ", "topk_products.csv", f"Extracted top {limit} products")
+            return df.to_json(orient="records", indent=2)
+        except Exception as e:
+            _log_access("ERROR", "topk_products.csv", str(e))
+            return None
 
 
 class SummaryGeneratorServer:
@@ -94,6 +109,9 @@ class MCPClient:
 
     def list_analytics(self) -> list[str]:
         return self.analytics_server.list_available_files()
+
+    def get_top_products(self, limit: int = 5) -> str | None:
+        return self.analytics_server.get_top_products(limit)
 
     def generate_summary(self, data: dict) -> str:
         return self.summary_server.generate_summary(data)

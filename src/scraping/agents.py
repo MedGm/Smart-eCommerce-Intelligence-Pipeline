@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from dataclasses import dataclass
 
 from src.config import data_dir, get_logger
@@ -166,7 +165,7 @@ class CoordinatorAgent:
     def _aggregate_results(self, records: list[ProductRecord]):
         """Save aggregated platform-level JSON files."""
         raw_dir = data_dir() / "raw"
-        
+
         # Shopify
         shopify_records = [r.to_dict() for r in records if r.source_platform == "shopify"]
         if shopify_records:
