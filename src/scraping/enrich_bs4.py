@@ -15,6 +15,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+from src.scraping.html_fallback import extract_product_fields_from_html
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux x86_64) "
@@ -41,41 +43,25 @@ def enrich_product(product: dict, delay: float = 1.0) -> dict:
         return product
 
     soup = BeautifulSoup(resp.text, "html.parser")
+    fallback_fields = extract_product_fields_from_html(str(soup))
 
-    if not product.get("description"):
-        meta_desc = soup.find("meta", attrs={"name": "description"})
-        if meta_desc and meta_desc.get("content"):
-            product["description"] = meta_desc["content"].strip()[:500]
+    if not product.get("description") and fallback_fields.get("description"):
+        product["description"] = fallback_fields["description"]
 
-    if not product.get("availability"):
-        og_avail = soup.find("meta", attrs={"property": "og:availability"})
-        if og_avail and og_avail.get("content"):
-            product["availability"] = og_avail["content"]
+    if not product.get("availability") and fallback_fields.get("availability"):
+        product["availability"] = fallback_fields["availability"]
 
-    if product.get("price") is None:
-        og_price = soup.find("meta", attrs={"property": "og:price:amount"})
-        if og_price and og_price.get("content"):
-            try:
-                product["price"] = float(og_price["content"])
-            except (ValueError, TypeError):
-                pass
+    if product.get("price") is None and fallback_fields.get("price") is not None:
+        product["price"] = fallback_fields["price"]
 
-    script_tags = soup.find_all("script", type="application/ld+json")
-    for script in script_tags:
-        try:
-            ld = json.loads(script.string or "")
-            if isinstance(ld, dict) and ld.get("@type") == "Product":
-                if not product.get("description") and ld.get("description"):
-                    product["description"] = ld["description"][:500]
-                agg = ld.get("aggregateRating") or {}
-                if product.get("rating") is None and agg.get("ratingValue"):
-                    product["rating"] = float(agg["ratingValue"])
-                if not product.get("review_count") and agg.get("reviewCount"):
-                    product["review_count"] = int(agg["reviewCount"])
-                if not product.get("category") and ld.get("category"):
-                    product["category"] = str(ld["category"])
-        except (json.JSONDecodeError, ValueError, TypeError):
-            continue
+    if product.get("rating") is None and fallback_fields.get("rating") is not None:
+        product["rating"] = fallback_fields["rating"]
+
+    if not product.get("review_count") and fallback_fields.get("review_count") is not None:
+        product["review_count"] = fallback_fields["review_count"]
+
+    if not product.get("category") and fallback_fields.get("category"):
+        product["category"] = fallback_fields["category"]
 
     time.sleep(delay)
     return product

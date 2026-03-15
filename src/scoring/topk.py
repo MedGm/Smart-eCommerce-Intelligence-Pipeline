@@ -57,20 +57,18 @@ def topk_overall(df: pd.DataFrame, k: int = 50) -> pd.DataFrame:
 def topk_per_category(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
     if "category" not in df.columns:
         return pd.DataFrame()
-    return (
-        df.groupby("category", group_keys=False)
-        .apply(lambda g: g.nlargest(k, "score"), include_groups=False)
-        .reset_index(drop=True)
-    )
+    chunks = [group.nlargest(k, "score") for _, group in df.groupby("category", sort=False)]
+    if not chunks:
+        return pd.DataFrame(columns=df.columns)
+    return pd.concat(chunks, ignore_index=True)
 
 
 def topk_per_shop(df: pd.DataFrame, k: int = 10) -> pd.DataFrame:
     key = ["source_platform", "shop_name"] if "shop_name" in df.columns else ["source_platform"]
-    return (
-        df.groupby(key, group_keys=False)
-        .apply(lambda g: g.nlargest(k, "score"), include_groups=False)
-        .reset_index(drop=True)
-    )
+    chunks = [group.nlargest(k, "score") for _, group in df.groupby(key, sort=False)]
+    if not chunks:
+        return pd.DataFrame(columns=df.columns)
+    return pd.concat(chunks, ignore_index=True)
 
 
 def run(k_overall: int = 50, k_per: int = 10):

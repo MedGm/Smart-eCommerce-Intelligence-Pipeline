@@ -20,7 +20,12 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
 from src.config import analytics_dir, get_logger
-from src.ml.utils import get_feature_columns, load_features
+from src.ml.utils import (
+    get_feature_columns,
+    honesty_gate,
+    label_integrity_diagnostics,
+    load_features,
+)
 
 logger = get_logger(__name__)
 
@@ -38,6 +43,7 @@ def run():
         from src.scoring.topk import compute_score
 
         df["score"] = compute_score(df)
+    target_origin = "proxy_engineered"
     df["high_potential"] = (df["score"] >= df["score"].quantile(0.80)).astype(int)
 
     # exclude_score=True prevents data leakage
@@ -70,6 +76,26 @@ def run():
         "confusion_matrix": confusion_matrix(y, y_pred_cv).tolist(),
     }
 
+    diagnostics = label_integrity_diagnostics(X, y, clf, cv=cv, random_state=42)
+    honesty = honesty_gate(
+        accuracy=metrics["accuracy"],
+        f1=metrics["f1"],
+        majority_baseline=diagnostics["majority_baseline_accuracy"],
+        shuffled_accuracy=diagnostics["shuffled_label_accuracy"],
+        target_origin=target_origin,
+    )
+
+    metrics["target_origin"] = target_origin
+    metrics["label_integrity"] = diagnostics
+    metrics["honesty_gate"] = honesty
+
+    if diagnostics["direct_leakage_check"] == "fail":
+        logger.warning(
+            "Potential leakage risk: shuffled-label accuracy %.3f exceeds majority baseline %.3f",
+            diagnostics["shuffled_label_accuracy"],
+            diagnostics["majority_baseline_accuracy"],
+        )
+
     # Also fit on full data for feature importance
     clf.fit(X, y)
     importance = sorted(zip(features, clf.feature_importances_), key=lambda x: x[1], reverse=True)
@@ -80,9 +106,12 @@ def run():
     with open(out_dir / "model_metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
     logger.info(
-        "RF trained (CV). accuracy=%.3f f1=%.3f -> analytics/model_metrics.json",
+        "RF trained (CV). accuracy=%.3f f1=%.3f direct_leakage=%s honesty=%s trust=%d -> analytics/model_metrics.json",
         metrics["accuracy"],
         metrics["f1"],
+        metrics["label_integrity"]["direct_leakage_check"],
+        metrics["honesty_gate"]["status"],
+        metrics["honesty_gate"]["trust_score"],
     )
     return clf, metrics
 

@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 
 from src.config import DEFAULT_USER_AGENT, SCRAPING_DELAY, SCRAPING_TIMEOUT
 from src.scraping.base import BaseScraper, ProductRecord
+from src.scraping.html_fallback import extract_product_fields_from_html
 
 HEADERS = {
     "User-Agent": DEFAULT_USER_AGENT,
@@ -123,41 +124,120 @@ class ShopifyScraper(BaseScraper):
             resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
             if resp.status_code != 200:
                 return fields
-            soup = BeautifulSoup(resp.text, "html.parser")
-
-            meta_desc = soup.find("meta", attrs={"name": "description"})
-            if meta_desc and meta_desc.get("content"):
-                fields["description"] = meta_desc["content"].strip()[:500]
-
-            og_price = soup.find("meta", attrs={"property": "og:price:amount"})
-            if og_price and og_price.get("content"):
-                try:
-                    fields["price"] = float(og_price["content"])
-                except (ValueError, TypeError):
-                    pass
-
-            og_avail = soup.find("meta", attrs={"property": "og:availability"})
-            if og_avail and og_avail.get("content"):
-                fields["availability"] = og_avail["content"]
-
-            import json as _json
-
-            for script in soup.find_all("script", type="application/ld+json"):
-                try:
-                    ld = _json.loads(script.string or "")
-                    if isinstance(ld, dict) and ld.get("@type") == "Product":
-                        agg = ld.get("aggregateRating") or {}
-                        if agg.get("ratingValue"):
-                            fields["rating"] = float(agg["ratingValue"])
-                        if agg.get("reviewCount"):
-                            fields["review_count"] = int(agg["reviewCount"])
-                        if ld.get("category"):
-                            fields["category"] = str(ld["category"])
-                except (ValueError, TypeError, _json.JSONDecodeError):
-                    continue
+            fields = extract_product_fields_from_html(resp.text, product_url=url)
         except requests.RequestException:
             pass
         return fields
+
+    def _taxonomy_evidence_from_product_json(
+        self, pdata: dict, collection: str, product_url: str
+    ) -> dict:
+        product_type = pdata.get("product_type")
+        tags = pdata.get("tags")
+        tags_present = False
+        if isinstance(tags, list):
+            tags_present = len(tags) > 0
+        elif isinstance(tags, str):
+            tags_present = bool(tags.strip())
+
+        product_type_present = isinstance(product_type, str) and bool(product_type.strip())
+        url_hint_present = "/collections/" in product_url.lower() or (
+            collection and collection != "all"
+        )
+
+        sources: list[str] = []
+        if product_type_present:
+            sources.append("product_type")
+        if tags_present:
+            sources.append("tags")
+        if url_hint_present:
+            sources.append("url_hint")
+
+        strength = "none"
+        if product_type_present:
+            strength = "medium"
+        elif tags_present or url_hint_present:
+            strength = "low"
+
+        return {
+            "taxonomy_breadcrumb_present": False,
+            "taxonomy_breadcrumb_count": None,
+            "taxonomy_jsonld_category_present": False,
+            "taxonomy_jsonld_breadcrumb_present": False,
+            "taxonomy_product_type_present": product_type_present,
+            "taxonomy_tags_present": tags_present,
+            "taxonomy_url_hint_present": url_hint_present,
+            "taxonomy_sources_detected": "|".join(sorted(sources)) if sources else None,
+            "taxonomy_evidence_strength": strength,
+            "category_path_raw": None,
+            "category_leaf_raw": None,
+        }
+
+    def _merge_taxonomy_evidence(self, primary: dict, fallback: dict) -> dict:
+        merged = primary.copy()
+        bool_keys = [
+            "taxonomy_breadcrumb_present",
+            "taxonomy_jsonld_category_present",
+            "taxonomy_jsonld_breadcrumb_present",
+            "taxonomy_product_type_present",
+            "taxonomy_tags_present",
+            "taxonomy_url_hint_present",
+        ]
+        for key in bool_keys:
+            merged[key] = bool(primary.get(key)) or bool(fallback.get(key))
+
+        primary_count = primary.get("taxonomy_breadcrumb_count")
+        fallback_count = fallback.get("taxonomy_breadcrumb_count")
+        if primary_count is None:
+            merged["taxonomy_breadcrumb_count"] = fallback_count
+        elif fallback_count is None:
+            merged["taxonomy_breadcrumb_count"] = primary_count
+        else:
+            merged["taxonomy_breadcrumb_count"] = max(int(primary_count), int(fallback_count))
+
+        source_values = []
+        for sources in [
+            primary.get("taxonomy_sources_detected"),
+            fallback.get("taxonomy_sources_detected"),
+        ]:
+            if isinstance(sources, str) and sources.strip():
+                source_values.extend([s for s in sources.split("|") if s])
+        merged["taxonomy_sources_detected"] = (
+            "|".join(sorted(set(source_values))) if source_values else None
+        )
+
+        def _prefer_text(*values: object) -> str | None:
+            for value in values:
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return None
+
+        merged["category_path_raw"] = _prefer_text(
+            primary.get("category_path_raw"),
+            fallback.get("category_path_raw"),
+        )
+        merged["category_leaf_raw"] = _prefer_text(
+            primary.get("category_leaf_raw"),
+            fallback.get("category_leaf_raw"),
+        )
+
+        has_high = (
+            merged["taxonomy_breadcrumb_present"]
+            or merged["taxonomy_jsonld_category_present"]
+            or merged["taxonomy_jsonld_breadcrumb_present"]
+        )
+        has_medium = merged["taxonomy_product_type_present"]
+        has_low = merged["taxonomy_tags_present"] or merged["taxonomy_url_hint_present"]
+        if has_high:
+            merged["taxonomy_evidence_strength"] = "high"
+        elif has_medium:
+            merged["taxonomy_evidence_strength"] = "medium"
+        elif has_low:
+            merged["taxonomy_evidence_strength"] = "low"
+        else:
+            merged["taxonomy_evidence_strength"] = "none"
+
+        return merged
 
     def _product_json_to_record(
         self, pdata: dict, slug: str, collection: str, now: str
@@ -199,6 +279,7 @@ class ShopifyScraper(BaseScraper):
 
         product_id = str(pdata.get("id", slug))
         product_url = f"{self.store_url}/products/{slug}"
+        taxonomy = self._taxonomy_evidence_from_product_json(pdata, collection, product_url)
 
         return ProductRecord(
             source_platform="shopify",
@@ -216,6 +297,17 @@ class ShopifyScraper(BaseScraper):
             review_count=None,
             geography=self.geography,
             scraped_at=now,
+            taxonomy_breadcrumb_present=taxonomy["taxonomy_breadcrumb_present"],
+            taxonomy_breadcrumb_count=taxonomy["taxonomy_breadcrumb_count"],
+            taxonomy_jsonld_category_present=taxonomy["taxonomy_jsonld_category_present"],
+            taxonomy_jsonld_breadcrumb_present=taxonomy["taxonomy_jsonld_breadcrumb_present"],
+            taxonomy_product_type_present=taxonomy["taxonomy_product_type_present"],
+            taxonomy_tags_present=taxonomy["taxonomy_tags_present"],
+            taxonomy_url_hint_present=taxonomy["taxonomy_url_hint_present"],
+            taxonomy_sources_detected=taxonomy["taxonomy_sources_detected"],
+            taxonomy_evidence_strength=taxonomy["taxonomy_evidence_strength"],
+            category_path_raw=taxonomy["category_path_raw"],
+            category_leaf_raw=taxonomy["category_leaf_raw"],
         )
 
     def scrape(self) -> list[ProductRecord]:
@@ -244,10 +336,49 @@ class ShopifyScraper(BaseScraper):
                         record.rating = html_fields["rating"]
                     if html_fields.get("review_count") is not None:
                         record.review_count = html_fields["review_count"]
+                    html_category = html_fields.get("category")
+                    if (
+                        isinstance(html_category, str)
+                        and html_category.strip()
+                        and (not record.category or not str(record.category).strip())
+                    ):
+                        record.category = html_category.strip()
+                    merged_taxonomy = self._merge_taxonomy_evidence(record.to_dict(), html_fields)
+                    record.taxonomy_breadcrumb_present = merged_taxonomy.get(
+                        "taxonomy_breadcrumb_present"
+                    )
+                    record.taxonomy_breadcrumb_count = merged_taxonomy.get(
+                        "taxonomy_breadcrumb_count"
+                    )
+                    record.taxonomy_jsonld_category_present = merged_taxonomy.get(
+                        "taxonomy_jsonld_category_present"
+                    )
+                    record.taxonomy_jsonld_breadcrumb_present = merged_taxonomy.get(
+                        "taxonomy_jsonld_breadcrumb_present"
+                    )
+                    record.taxonomy_product_type_present = merged_taxonomy.get(
+                        "taxonomy_product_type_present"
+                    )
+                    record.taxonomy_tags_present = merged_taxonomy.get("taxonomy_tags_present")
+                    record.taxonomy_url_hint_present = merged_taxonomy.get(
+                        "taxonomy_url_hint_present"
+                    )
+                    record.taxonomy_sources_detected = merged_taxonomy.get(
+                        "taxonomy_sources_detected"
+                    )
+                    record.taxonomy_evidence_strength = merged_taxonomy.get(
+                        "taxonomy_evidence_strength"
+                    )
+                    record.category_path_raw = merged_taxonomy.get("category_path_raw")
+                    record.category_leaf_raw = merged_taxonomy.get("category_leaf_raw")
                     records.append(record)
             else:
                 html_fields = self._fetch_product_html_fallback(slug)
                 if html_fields:
+                    html_category = html_fields.get("category")
+                    if not (isinstance(html_category, str) and html_category.strip()):
+                        html_category = None
+
                     record = ProductRecord(
                         source_platform="shopify",
                         shop_name=self.shop_name,
@@ -255,9 +386,8 @@ class ShopifyScraper(BaseScraper):
                         product_url=f"{self.store_url}/products/{slug}",
                         title=slug.replace("-", " ").title(),
                         description=html_fields.get("description", ""),
-                        category=collection.replace("-", " ").title()
-                        if collection != "all"
-                        else None,
+                        category=html_category
+                        or (collection.replace("-", " ").title() if collection != "all" else None),
                         brand=self.shop_name,
                         price=html_fields.get("price"),
                         old_price=None,
@@ -266,6 +396,23 @@ class ShopifyScraper(BaseScraper):
                         review_count=html_fields.get("review_count"),
                         geography=self.geography,
                         scraped_at=now,
+                        taxonomy_breadcrumb_present=html_fields.get("taxonomy_breadcrumb_present"),
+                        taxonomy_breadcrumb_count=html_fields.get("taxonomy_breadcrumb_count"),
+                        taxonomy_jsonld_category_present=html_fields.get(
+                            "taxonomy_jsonld_category_present"
+                        ),
+                        taxonomy_jsonld_breadcrumb_present=html_fields.get(
+                            "taxonomy_jsonld_breadcrumb_present"
+                        ),
+                        taxonomy_product_type_present=html_fields.get(
+                            "taxonomy_product_type_present"
+                        ),
+                        taxonomy_tags_present=html_fields.get("taxonomy_tags_present"),
+                        taxonomy_url_hint_present=html_fields.get("taxonomy_url_hint_present"),
+                        taxonomy_sources_detected=html_fields.get("taxonomy_sources_detected"),
+                        taxonomy_evidence_strength=html_fields.get("taxonomy_evidence_strength"),
+                        category_path_raw=html_fields.get("category_path_raw"),
+                        category_leaf_raw=html_fields.get("category_leaf_raw"),
                     )
                     records.append(record)
 

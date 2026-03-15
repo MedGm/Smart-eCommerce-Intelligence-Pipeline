@@ -25,6 +25,17 @@ class ProductRecord:
     review_count: int | None
     geography: str | None
     scraped_at: str
+    taxonomy_breadcrumb_present: bool | None = None
+    taxonomy_breadcrumb_count: int | None = None
+    taxonomy_jsonld_category_present: bool | None = None
+    taxonomy_jsonld_breadcrumb_present: bool | None = None
+    taxonomy_product_type_present: bool | None = None
+    taxonomy_tags_present: bool | None = None
+    taxonomy_url_hint_present: bool | None = None
+    taxonomy_sources_detected: str | None = None
+    taxonomy_evidence_strength: str | None = None
+    category_path_raw: str | None = None
+    category_leaf_raw: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

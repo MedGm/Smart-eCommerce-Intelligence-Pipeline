@@ -21,6 +21,30 @@ The entire pipeline is containerized using `Dockerfile` (based on `python:3.11-s
 
 To simulate a production Kubernetes cluster locally, we use Minikube. We have provided an automated deployment script to streamline the MLOps process.
 
+### Happy path (operator workflow)
+
+Use the unified operator command when you want deploy + UI access + verification in one run:
+
+```bash
+make kfp-operator
+```
+
+What it does:
+- Deploys/updates Kubeflow resources and pipeline image.
+- Starts KFP UI port-forward on `localhost:8080` (or `KFP_UI_PORT`).
+- Verifies pod health, UI HTTP status, and recent workflow visibility.
+- Stops early on failures with direct diagnostics.
+
+Predictable subcommands:
+
+```bash
+make kfp-operator-deploy        # deploy/update only
+make kfp-operator-port-forward  # start UI port-forward only
+make kfp-operator-verify        # run health/status verification only
+make kfp-operator-status        # quick status summary
+make kfp-operator-stop-forward  # stop background port-forward
+```
+
 ### Step 1: Start your local cluster
 Ensure Docker desktop is running, then initialize Minikube with sufficient resources for ML processing:
 ```bash

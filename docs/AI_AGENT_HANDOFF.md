@@ -56,13 +56,17 @@ Core flow:
 
 ## 4) Practical maintenance workflow
 
+Preferred operator flow:
+1. `make kfp-operator` (deploy + port-forward + verification)
+2. Upload/Run `kubeflow_smart_ecommerce_pipeline.yaml` (generated artifact; compile it instead of treating it as hand-edited source)
+3. Validate outputs in `data/analytics/`
+4. Validate app surface with `make dashboard`
+5. Run quality gates: `make test && make lint`
+
+Granular fallback flow:
 1. `make compile-kfp`
 2. `./scripts/deploy_kfp_minikube.sh`
 3. `kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
-4. Upload/Run `kubeflow_smart_ecommerce_pipeline.yaml` (generated artifact; compile it instead of treating it as hand-edited source)
-5. Validate outputs in `data/analytics/`
-6. Validate app surface with `make dashboard`
-7. Run quality gates: `make test && make lint`
 
 ## 5) Validated runtime state (14 March 2026)
 
