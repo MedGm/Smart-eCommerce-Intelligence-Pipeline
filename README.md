@@ -15,47 +15,7 @@ Deliver a reproducible, auditable system that answers:
 
 ## Architecture
 
-```
-[ Shopify / WooCommerce Sources ]
-         │
-         ▼
-[ A2A Coordinator + Worker Agents ]  ←  src/scraping/agents.py
-         │  (concurrent, taxonomy-aware)
-         ▼
-[ Raw JSON Store ]  →  data/raw/
-         │
-         ▼
-[ Preprocessing + DQ ]              ←  src/preprocessing/
-   • dedup, price/rating parsing
-   • path-aware category normalisation
-   • validation + DQ counters + failure samples
-         │
-         ▼
-[ Feature Engineering ]             ←  src/features/
-         │
-         ▼
-[ Top-K Scoring ]                   ←  src/scoring/topk.py
-   • explainable formula (rating 35%, reviews 30%, availability 20%, discount 15%)
-   • outputs: topk_products / topk_per_category / topk_per_shop
-         │
-         ▼
-[ ML + Data Mining ]                ←  src/ml/
-   • RandomForest + XGBoost classifiers
-   • KMeans + DBSCAN clustering → PCA visualisation
-   • Apriori association rules
-         │
-         ▼
-[ LLM Summaries (Gemini) ]         ←  src/llm/   (MCP read-only access)
-         │
-         ▼
-[ Streamlit BI Dashboard ]          ←  src/dashboard/app.py
-   • Overview · Shop Performance · Product Explorer
-   • ML / Mining · LLM Insights
-         │
-         ▼
-[ Kubeflow Pipeline + Minikube ]   ←  src/pipeline/kubeflow_pipeline.py
-[ Docker + CI (GitHub Actions) ]
-```
+![Architecture diagram](docs/diagrams/architecture.jpg)
 
 See [docs/architecture.md](docs/architecture.md) and the Mermaid diagrams in [docs/diagrams/](docs/diagrams/).
 
