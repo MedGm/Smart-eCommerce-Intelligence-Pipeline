@@ -4,7 +4,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-.PHONY: install install-dev scrape preprocess features score train pipeline dashboard test lint clean
+.PHONY: install install-dev scrape preprocess features score train pipeline dashboard test lint clean kfp-operator kfp-operator-deploy kfp-operator-port-forward kfp-operator-stop-forward kfp-operator-verify kfp-operator-status
 
 install:
 	$(PIP) install -r requirements.txt
@@ -39,6 +39,24 @@ compile-kfp:
 
 dashboard:
 	PYTHONPATH=. streamlit run src/dashboard/app.py --server.port 8501
+
+kfp-operator:
+	./scripts/kfp_operator_workflow.sh all
+
+kfp-operator-deploy:
+	./scripts/kfp_operator_workflow.sh deploy
+
+kfp-operator-port-forward:
+	./scripts/kfp_operator_workflow.sh port-forward
+
+kfp-operator-stop-forward:
+	./scripts/kfp_operator_workflow.sh stop-port-forward
+
+kfp-operator-verify:
+	./scripts/kfp_operator_workflow.sh verify
+
+kfp-operator-status:
+	./scripts/kfp_operator_workflow.sh status
 
 test:
 	$(PYTHON) -m pytest tests/ -v

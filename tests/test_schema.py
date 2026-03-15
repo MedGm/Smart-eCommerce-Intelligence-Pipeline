@@ -20,10 +20,20 @@ def test_product_record_to_dict():
         review_count=10,
         geography="US",
         scraped_at="2024-01-01T00:00:00",
+        taxonomy_breadcrumb_present=True,
+        taxonomy_breadcrumb_count=3,
+        taxonomy_jsonld_category_present=True,
+        taxonomy_jsonld_breadcrumb_present=False,
+        taxonomy_product_type_present=True,
+        taxonomy_tags_present=False,
+        taxonomy_url_hint_present=True,
+        taxonomy_sources_detected="breadcrumb_html|product_type|url_hint",
+        taxonomy_evidence_strength="high",
     )
     d = r.to_dict()
     assert d["source_platform"] == "shopify"
     assert d["price"] == 99.99
+    assert d["taxonomy_evidence_strength"] == "high"
 
 
 def test_product_record_from_dict():
@@ -43,7 +53,17 @@ def test_product_record_from_dict():
         "review_count": 0,
         "geography": None,
         "scraped_at": "2024-01-01",
+        "taxonomy_breadcrumb_present": False,
+        "taxonomy_breadcrumb_count": None,
+        "taxonomy_jsonld_category_present": False,
+        "taxonomy_jsonld_breadcrumb_present": False,
+        "taxonomy_product_type_present": False,
+        "taxonomy_tags_present": True,
+        "taxonomy_url_hint_present": True,
+        "taxonomy_sources_detected": "tags|url_hint",
+        "taxonomy_evidence_strength": "low",
     }
     r = ProductRecord.from_dict(d)
     assert r.product_id == "42"
     assert r.source_platform == "woocommerce"
+    assert r.taxonomy_sources_detected == "tags|url_hint"

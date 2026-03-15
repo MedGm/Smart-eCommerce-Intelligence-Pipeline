@@ -1582,6 +1582,19 @@ def load_features() -> pd.DataFrame:
     return pd.read_parquet(p) if p.exists() else pd.DataFrame()
 
 
+@st.cache_data(ttl=60)
+def load_processed_json(name: str) -> dict:
+    from src.config import processed_dir
+
+    path = processed_dir() / name
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 @st.cache_data(ttl=300)
 def get_llm_summary() -> str:
     try:
@@ -1656,6 +1669,51 @@ def format_percent(value):
     if pd.isna(value):
         return "n/a"
     return f"{float(value) * 100:.1f}%"
+
+
+def parse_jsonl_loose(raw_text: str) -> list[dict]:
+    """Parse JSONL defensively, including lines with concatenated JSON objects."""
+    if not raw_text:
+        return []
+    records: list[dict] = []
+    decoder = json.JSONDecoder()
+
+    for line in raw_text.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+
+        # Common corruption case: multiple objects stuck on one line.
+        text = text.replace("}{", "}\n{")
+        for chunk in text.splitlines():
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+
+            # Try full-line parse first.
+            try:
+                obj = json.loads(chunk)
+                if isinstance(obj, dict):
+                    records.append(obj)
+                continue
+            except json.JSONDecodeError:
+                pass
+
+            # Fallback: scan for embedded JSON objects inside noisy text.
+            idx = 0
+            while idx < len(chunk):
+                brace = chunk.find("{", idx)
+                if brace < 0:
+                    break
+                try:
+                    obj, end = decoder.raw_decode(chunk, brace)
+                    if isinstance(obj, dict):
+                        records.append(obj)
+                    idx = end
+                except json.JSONDecodeError:
+                    idx = brace + 1
+
+    return records
 
 
 # ── Sidebar ───────────────────────────────────────────────────
@@ -1753,6 +1811,9 @@ if page == "Overview":
     )
     lead_platform = max(platform_mix, key=platform_mix.get) if platform_mix else "Unknown"
     review_mass = int(df["review_count"].fillna(0).sum()) if "review_count" in df.columns else 0
+    dq = load_processed_json("dq_counters.json")
+    run_meta = load_processed_json("run_metadata.json")
+    audit_delta = load_json("category_audit_before_after_delta.json")
 
     st.markdown(
         f"""
@@ -1830,6 +1891,104 @@ if page == "Overview":
         """,
         unsafe_allow_html=True,
     )
+
+    # Transparent data-quality + audit representation (no mock values)
+    st.markdown(
+        '<div class="section-header">Data Quality and Audit Truth</div>', unsafe_allow_html=True
+    )
+
+    if dq:
+        rows_total = int(dq.get("rows_total", 0))
+        category_found = int(dq.get("category_found", 0))
+        category_missing = int(dq.get("category_missing", 0))
+        category_found_rate = (category_found / rows_total) if rows_total else np.nan
+        evidence_high = int(dq.get("category_evidence_strength_high", 0))
+
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("Rows (validated)", f"{rows_total:,}")
+        d2.metric("Category Found", f"{category_found:,}")
+        d3.metric("Category Missing", f"{category_missing:,}")
+        d4.metric(
+            "Found Rate",
+            f"{category_found_rate * 100:.1f}%" if pd.notna(category_found_rate) else "—",
+        )
+
+        with st.expander("Category Evidence Distribution", expanded=False):
+            evidence_rows = []
+            for key, value in dq.items():
+                if key.startswith("category_evidence_strength_") and isinstance(
+                    value, (int, float)
+                ):
+                    evidence_rows.append(
+                        {
+                            "Evidence": key.replace("category_evidence_strength_", ""),
+                            "Count": int(value),
+                        }
+                    )
+            if evidence_rows:
+                ev_df = pd.DataFrame(evidence_rows).sort_values("Count", ascending=False)
+                fig = px.bar(
+                    ev_df,
+                    x="Evidence",
+                    y="Count",
+                    color="Evidence",
+                    color_discrete_sequence=C["palette"],
+                )
+                fig.update_layout(showlegend=False, xaxis_title="Evidence strength")
+                fig = apply_theme(fig, "Category evidence strength", 320)
+                st.plotly_chart(fig, width="stretch")
+            st.caption(
+                f"High-evidence rows: {evidence_high:,} / {rows_total:,}"
+                if rows_total
+                else "Evidence counters unavailable"
+            )
+    else:
+        st.info(
+            "`dq_counters.json` not found in processed outputs; run preprocessing to populate DQ metrics."
+        )
+
+    if audit_delta:
+        after_counts = audit_delta.get("status_counts_on_same_20_rows", {}).get("after", {}) or {}
+        non_found_after = (
+            audit_delta.get("active_root_cause_counts_non_found", {}).get("after", {}) or {}
+        )
+        a1, a2, a3, a4 = st.columns(4)
+        a1.metric("Audit Rows", int(audit_delta.get("rows", 0)))
+        a2.metric("Audit Found", int(after_counts.get("found", 0)))
+        a3.metric("Audit Missing", int(after_counts.get("missing", 0)))
+        a4.metric(
+            "Shopify extraction_failed",
+            int((audit_delta.get("shopify_extraction_failed_count") or {}).get("after", 0)),
+        )
+
+        if non_found_after:
+            root_df = pd.DataFrame(
+                [{"Root Cause": key, "Count": int(value)} for key, value in non_found_after.items()]
+            ).sort_values("Count", ascending=False)
+            fig = px.bar(
+                root_df,
+                x="Count",
+                y="Root Cause",
+                orientation="h",
+                color="Count",
+                color_continuous_scale=[[0, C["accent"]], [1, C["primary"]]],
+            )
+            fig.update_layout(coloraxis_showscale=False)
+            fig = apply_theme(fig, "Active non-found root causes (20-row audit)", 320)
+            st.plotly_chart(fig, width="stretch")
+        with st.expander("Audit delta payload", expanded=False):
+            st.json(audit_delta)
+    else:
+        st.info("`category_audit_before_after_delta.json` not found in analytics outputs.")
+
+    if run_meta:
+        st.caption(
+            "Run metadata — "
+            f"schema {run_meta.get('schema_version', 'n/a')}, "
+            f"extraction {run_meta.get('extraction_version', 'n/a')}, "
+            f"timestamp {run_meta.get('run_ts_utc', 'n/a')}, "
+            f"rows_output {run_meta.get('rows_output', 'n/a')}"
+        )
 
     st.markdown('<div class="section-header">Market structure</div>', unsafe_allow_html=True)
 
@@ -2445,6 +2604,7 @@ elif page == "Shop Analysis":
 
     df = load_features()
     topk_shop = load_csv("topk_per_shop.csv")
+    topk_products = load_csv("topk_products.csv")
 
     if df.empty:
         st.warning("No data available.")
@@ -2463,6 +2623,7 @@ elif page == "Shop Analysis":
             .sort_values("products", ascending=False)
         )
 
+        # Prefer shop-level artifact; fallback to topk_products when legacy topk_per_shop lacks keys.
         if (
             not topk_shop.empty
             and "shop_name" in topk_shop.columns
@@ -2470,6 +2631,18 @@ elif page == "Shop Analysis":
         ):
             shop_scores = (
                 topk_shop.groupby("shop_name")["score"]
+                .mean()
+                .reset_index()
+                .rename(columns={"score": "avg_score"})
+            )
+            stats = stats.merge(shop_scores, on="shop_name", how="left")
+        elif (
+            not topk_products.empty
+            and "shop_name" in topk_products.columns
+            and "score" in topk_products.columns
+        ):
+            shop_scores = (
+                topk_products.groupby("shop_name")["score"]
                 .mean()
                 .reset_index()
                 .rename(columns={"score": "avg_score"})
@@ -2515,6 +2688,9 @@ elif page == "Shop Analysis":
                 if pd.notna(row.get("avg_rating")) and row.get("avg_rating", 0.0) > 0
                 else "n/a"
             )
+            avg_score_text = (
+                f"{float(row.get('avg_score')):.3f}" if pd.notna(row.get("avg_score")) else "n/a"
+            )
             catalog_share = (
                 (float(row.get("products", 0)) / stats["products"].sum()) * 100
                 if stats["products"].sum()
@@ -2524,7 +2700,7 @@ elif page == "Shop Analysis":
                 f'<div class="shop-dossier">'
                 f'<div class="shop-dossier-top">'
                 f'<div class="shop-dossier-name">{html.escape(safe_text(row.get("shop_name")))}</div>'
-                f'<div class="shop-dossier-score">avg score {float(row.get("avg_score", 0.0)):.3f}</div>'
+                f'<div class="shop-dossier-score">avg score {avg_score_text}</div>'
                 f"</div>"
                 f'<div class="shop-dossier-copy">'
                 f"{int(row.get('products', 0))} tracked products · "
@@ -2676,7 +2852,7 @@ elif page == "Shop Analysis":
             st.plotly_chart(fig, width="stretch")
 
         with tab3:
-            if not topk_shop.empty and "score" in stats.columns and "shop_name" in stats.columns:
+            if "avg_score" in stats.columns and stats["avg_score"].notna().any():
                 ss = (
                     stats[["shop_name", "avg_score", "products"]]
                     .dropna(subset=["avg_score"])
@@ -2705,14 +2881,23 @@ elif page == "Shop Analysis":
                 fig.update_layout(coloraxis_showscale=False)
                 fig = apply_theme(fig, "Shop Score Ranking", 380)
                 st.plotly_chart(fig, width="stretch")
+            else:
+                st.info(
+                    "Shop score ranking unavailable: no usable `shop_name`+`score` artifact in current analytics."
+                )
 
         with tab4:
             matrix = stats.copy()
             matrix["price_fill"] = matrix["avg_price"].fillna(matrix["avg_price"].median())
+            y_col = (
+                "avg_score"
+                if ("avg_score" in matrix.columns and matrix["avg_score"].notna().any())
+                else "avg_discount"
+            )
             fig = px.scatter(
                 matrix,
                 x="products",
-                y="avg_score" if "avg_score" in matrix.columns else "avg_discount",
+                y=y_col,
                 size="price_fill",
                 color="avg_discount",
                 hover_name="shop_name",
@@ -2720,9 +2905,7 @@ elif page == "Shop Analysis":
             )
             fig.update_layout(
                 xaxis_title="Tracked products",
-                yaxis_title="Average score"
-                if "avg_score" in matrix.columns
-                else "Average discount",
+                yaxis_title="Average score" if y_col == "avg_score" else "Average discount",
                 coloraxis_colorbar_title="Avg discount",
             )
             fig = apply_theme(fig, "Shop matrix: scale vs score", 430)
@@ -3607,18 +3790,31 @@ elif page == "LLM Insights":
         )
 
         with st.expander("LLM Usage Log", expanded=False):
-            import json
-
             from src.config import analytics_dir as _adir
 
             lp = _adir() / "llm_usage_log.jsonl"
             if lp.exists():
-                for line in lp.read_text().strip().split("\\n")[-5:]:
-                    line = line.strip()
-                    if line:
-                        try:
-                            st.json(json.loads(line))
-                        except json.JSONDecodeError:
-                            st.text(line)
+                raw_log = lp.read_text(encoding="utf-8")
+                records = parse_jsonl_loose(raw_log)
+                if records:
+                    log_df = pd.DataFrame(records)
+                    preferred_cols = [
+                        c
+                        for c in [
+                            "timestamp",
+                            "source",
+                            "action",
+                            "resource",
+                            "prompt_preview",
+                            "response_preview",
+                            "detail",
+                        ]
+                        if c in log_df.columns
+                    ]
+                    if preferred_cols:
+                        log_df = log_df[preferred_cols]
+                    st.dataframe(log_df.tail(25), height=320)
+                else:
+                    st.warning("LLM usage log exists but could not be parsed as JSON records.")
             else:
                 st.info("No LLM usage log yet.")

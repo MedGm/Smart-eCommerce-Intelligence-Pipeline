@@ -25,8 +25,8 @@ seaborn>=0.12.0
 
 # LLM (Gemini / OpenAI-compatible)
 google-genai>=1.66.0
+langchain-google-genai>=4.0.0   # CoordinatorAgent LLM planner (Gemini via LangChain)
 # openai>=1.0.0          # optional: for OpenAI adapter
-# langchain>=0.1.0       # optional: for LangChain demo
 
 # Pipeline / orchestration
 kfp>=2.4.0
