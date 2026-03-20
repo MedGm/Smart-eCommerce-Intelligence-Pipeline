@@ -35,6 +35,7 @@ def get_feature_columns(
     df: pd.DataFrame,
     *,
     exclude_score: bool = False,
+    exclude_columns: list[str] | None = None,
 ) -> list[str]:
     """Return numeric feature column names, excluding metadata/target columns.
 
@@ -46,7 +47,55 @@ def get_feature_columns(
     exclude = set(_NON_FEATURE_COLUMNS)
     if exclude_score:
         exclude |= {"score", "popularity_proxy"}
+    if exclude_columns:
+        exclude |= set(exclude_columns)
     return [c for c in df.select_dtypes(include=[np.number]).columns if c not in exclude]
+
+
+def build_high_potential_target(df: pd.DataFrame) -> tuple[pd.Series, dict]:
+    """Create an observed-behavior target less circular than score-percentile labels.
+
+    The target is anchored in explicit evidence thresholds (rating/reviews/stock),
+    with a controlled fallback when positives become too sparse.
+    """
+    n = len(df)
+    rating = df.get("rating", pd.Series(0.0, index=df.index)).fillna(0)
+    reviews = df.get("review_count", pd.Series(0.0, index=df.index)).fillna(0).astype(float)
+    in_stock = df.get("is_in_stock", pd.Series(False, index=df.index)).fillna(False).astype(bool)
+    dq_score = df.get("dq_score", pd.Series(0.0, index=df.index)).fillna(0).astype(float)
+
+    base = (rating >= 4.3) & (reviews >= 10) & in_stock
+
+    min_pos = max(20, int(0.05 * max(n, 1)))
+    target = base.copy()
+    fallback_used = False
+
+    if int(target.sum()) < min_pos:
+        fallback_used = True
+        review_q90 = float(reviews.quantile(0.90)) if n else 0.0
+        dq_q50 = float(dq_score.quantile(0.50)) if n else 0.0
+        relaxed = (rating >= 4.0) & (reviews >= 5) & in_stock
+        heavy_demand = (reviews >= review_q90) & in_stock & (dq_score >= dq_q50)
+        target = relaxed | heavy_demand
+
+    target = target.astype(int)
+
+    meta = {
+        "strategy": "observed_signal_thresholds",
+        "fallback_used": fallback_used,
+        "positive_rate": float(target.mean()) if n else 0.0,
+        "positives": int(target.sum()),
+        "rows": int(n),
+        "label_driver_features": [
+            "rating",
+            "review_count",
+            "rating_weighted_reviews",
+            "is_in_stock",
+            "dq_score",
+        ],
+        "base_rule": "rating>=4.3 and review_count>=10 and is_in_stock",
+    }
+    return target, meta
 
 
 def load_features() -> pd.DataFrame:
@@ -167,4 +216,63 @@ def honesty_gate(
         "target_origin": target_origin,
         "trust_score": int(trust_score),
         "notes": notes,
+    }
+
+
+def optimize_f1_threshold(
+    y_true: pd.Series | np.ndarray,
+    y_proba: pd.Series | np.ndarray,
+    *,
+    grid: np.ndarray | None = None,
+) -> dict:
+    """Find a probability threshold that maximizes F1.
+
+    Returns the best threshold along with precision/recall/F1/accuracy metrics,
+    and default-threshold (0.5) metrics for comparison.
+    """
+    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+
+    y_true_arr = np.asarray(y_true).astype(int)
+    y_proba_arr = np.asarray(y_proba).astype(float)
+
+    if grid is None:
+        grid = np.round(np.linspace(0.1, 0.9, 17), 2)
+
+    best = {
+        "threshold": 0.5,
+        "accuracy": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": -1.0,
+    }
+
+    for t in grid:
+        pred = (y_proba_arr >= float(t)).astype(int)
+        f1 = float(f1_score(y_true_arr, pred, zero_division=0))
+        candidate = {
+            "threshold": float(t),
+            "accuracy": float(accuracy_score(y_true_arr, pred)),
+            "precision": float(precision_score(y_true_arr, pred, zero_division=0)),
+            "recall": float(recall_score(y_true_arr, pred, zero_division=0)),
+            "f1": f1,
+        }
+        if f1 > best["f1"]:
+            best = candidate
+
+    default_pred = (y_proba_arr >= 0.5).astype(int)
+    default_metrics = {
+        "threshold": 0.5,
+        "accuracy": float(accuracy_score(y_true_arr, default_pred)),
+        "precision": float(precision_score(y_true_arr, default_pred, zero_division=0)),
+        "recall": float(recall_score(y_true_arr, default_pred, zero_division=0)),
+        "f1": float(f1_score(y_true_arr, default_pred, zero_division=0)),
+    }
+
+    return {
+        "strategy": "maximize_f1",
+        "best": best,
+        "default": default_metrics,
+        "grid_min": float(np.min(grid)) if len(grid) else 0.1,
+        "grid_max": float(np.max(grid)) if len(grid) else 0.9,
+        "grid_size": int(len(grid)),
     }

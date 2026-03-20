@@ -16,14 +16,16 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.model_selection import GroupKFold, StratifiedKFold, cross_val_predict
 
 from src.config import analytics_dir, get_logger
 from src.ml.utils import (
+    build_high_potential_target,
     get_feature_columns,
     honesty_gate,
     label_integrity_diagnostics,
     load_features,
+    optimize_f1_threshold,
 )
 
 logger = get_logger(__name__)
@@ -49,21 +51,27 @@ def run():
         logger.warning("Not enough data for XGBoost training (%d rows).", len(df))
         return
 
-    if "score" not in df.columns:
-        from src.scoring.topk import compute_score
+    target_origin = "external_observed"
+    df["high_potential"], target_meta = build_high_potential_target(df)
+    if df["high_potential"].nunique() < 2:
+        logger.warning("Target has a single class after construction. Skipping XGBoost training.")
+        return
 
-        df["score"] = compute_score(df)
-    target_origin = "proxy_engineered"
-    df["high_potential"] = (df["score"] >= df["score"].quantile(0.80)).astype(int)
-
-    # exclude_score=True prevents data leakage
-    features = get_feature_columns(df, exclude_score=True)
+    # Exclude score-derived and target-defining columns to reduce circularity.
+    features = get_feature_columns(
+        df,
+        exclude_score=True,
+        exclude_columns=target_meta.get("label_driver_features", []),
+    )
     if not features:
         logger.warning("No numeric features found.")
         return
 
     X = df[features].fillna(0)
     y = df["high_potential"]
+    pos = max(1, int((y == 1).sum()))
+    neg = max(1, int((y == 0).sum()))
+    scale_pos_weight = float(neg / pos)
 
     clf = XGBClassifier(
         n_estimators=100,
@@ -71,6 +79,7 @@ def run():
         learning_rate=0.1,
         random_state=42,
         eval_metric="logloss",
+        scale_pos_weight=scale_pos_weight,
     )
 
     cv = StratifiedKFold(
@@ -78,11 +87,13 @@ def run():
         shuffle=True,
         random_state=42,
     )
-    y_pred = cross_val_predict(clf, X, y, cv=cv)
+    y_proba = cross_val_predict(clf, X, y, cv=cv, method="predict_proba")[:, 1]
+    cv_threshold = optimize_f1_threshold(y, y_proba)
+    y_pred = (y_proba >= cv_threshold["best"]["threshold"]).astype(int)
 
     metrics = {
         "model": "XGBoost",
-        "method": "cross_validation",
+        "method": "cross_validation+grouped_cv",
         "n_samples": len(df),
         "n_features": len(features),
         "features": features,
@@ -91,7 +102,61 @@ def run():
         "recall": float(recall_score(y, y_pred, zero_division=0)),
         "f1": float(f1_score(y, y_pred, zero_division=0)),
         "confusion_matrix": confusion_matrix(y, y_pred).tolist(),
+        "calibration": cv_threshold,
+        "scale_pos_weight": scale_pos_weight,
     }
+
+    if "shop_name" in df.columns:
+        shop_target = (
+            df.assign(_y=y.astype(int))
+            .groupby("shop_name")["_y"]
+            .agg(["sum", "count"])
+            .rename(columns={"sum": "positives", "count": "rows"})
+            .reset_index()
+        )
+        total_pos = int(shop_target["positives"].sum())
+        shops_with_pos = int((shop_target["positives"] > 0).sum())
+        max_share = float(shop_target["positives"].max() / total_pos) if total_pos > 0 else 0.0
+        metrics["grouped_cv_feasibility"] = {
+            "total_shops": int(shop_target["shop_name"].nunique()),
+            "shops_with_positive_labels": shops_with_pos,
+            "max_positive_share_single_shop": max_share,
+            "high_risk": bool(shops_with_pos < 3 or max_share > 0.8),
+            "notes": (
+                "Positive labels are concentrated in few shops; grouped CV may understate generalization."
+                if (shops_with_pos < 3 or max_share > 0.8)
+                else "Positive labels are sufficiently distributed across shops."
+            ),
+            "by_shop": shop_target.sort_values("positives", ascending=False).to_dict("records"),
+        }
+
+    # Leakage-resistant evaluation: group folds by shop.
+    if "shop_name" in df.columns and df["shop_name"].nunique() >= 2:
+        groups = df["shop_name"].astype(str)
+        group_cv = GroupKFold(n_splits=min(5, int(groups.nunique())))
+        try:
+            y_proba_group = cross_val_predict(
+                clf,
+                X,
+                y,
+                cv=group_cv,
+                groups=groups,
+                method="predict_proba",
+            )[:, 1]
+            grouped_threshold = optimize_f1_threshold(y, y_proba_group)
+            y_pred_group = (y_proba_group >= grouped_threshold["best"]["threshold"]).astype(int)
+            metrics["grouped_cv"] = {
+                "n_splits": int(min(5, int(groups.nunique()))),
+                "accuracy": float(accuracy_score(y, y_pred_group)),
+                "precision": float(precision_score(y, y_pred_group, zero_division=0)),
+                "recall": float(recall_score(y, y_pred_group, zero_division=0)),
+                "f1": float(f1_score(y, y_pred_group, zero_division=0)),
+                "confusion_matrix": confusion_matrix(y, y_pred_group).tolist(),
+                "group_key": "shop_name",
+                "calibration": grouped_threshold,
+            }
+        except Exception as e:
+            metrics["grouped_cv"] = {"error": str(e), "group_key": "shop_name"}
 
     diagnostics = label_integrity_diagnostics(X, y, clf, cv=cv, random_state=42)
     honesty = honesty_gate(
@@ -103,6 +168,7 @@ def run():
     )
 
     metrics["target_origin"] = target_origin
+    metrics["target_definition"] = target_meta
     metrics["label_integrity"] = diagnostics
     metrics["honesty_gate"] = honesty
 

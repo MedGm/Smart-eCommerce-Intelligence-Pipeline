@@ -42,8 +42,20 @@ def is_in_stock(df: pd.DataFrame) -> pd.Series:
     """Boolean from availability (in stock / available)."""
     if "availability" not in df.columns:
         return pd.Series(True, index=df.index)
-    av = df["availability"].astype(str).str.lower()
-    return av.str.contains("in stock|available|yes", na=False)
+    av = df["availability"].fillna("").astype(str).str.strip().str.lower()
+
+    # Normalize common storefront/API variants first to avoid false positives.
+    negative = av.str.contains(
+        r"(?:^outofstock$|^out of stock$|schema\.org/outofstock|^false$|^0$|unavailable)",
+        regex=True,
+        na=False,
+    )
+    positive = av.str.contains(
+        r"(?:^instock$|^in stock$|schema\.org/instock|available|^yes$|^true$|^1$)",
+        regex=True,
+        na=False,
+    )
+    return positive & ~negative
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:

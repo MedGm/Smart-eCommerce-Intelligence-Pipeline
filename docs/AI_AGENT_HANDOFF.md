@@ -68,17 +68,17 @@ Granular fallback flow:
 2. `./scripts/deploy_kfp_minikube.sh`
 3. `kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80`
 
-## 5) Validated runtime state (14 March 2026)
+## 5) Validated runtime state (20 March 2026)
 
-- `pytest` is green: 38/38 tests passed.
+- `pytest` is green: 66/66 tests passed.
 - Ruff is clean after formatting/import fixes.
-- Local analytics outputs are validated: 634 cleaned rows, 634 feature rows, 50 Top-K products.
+- Local analytics outputs are validated: 635 cleaned rows, 635 feature rows, 50 Top-K products.
 - Current model/analytics snapshot:
-   - RF: accuracy `0.9968`, F1 `0.9923`
-   - XGBoost: accuracy `0.9984`, F1 `0.9962`
+   - RF: accuracy `0.9685`, F1 `0.8113` (honesty gate: yellow, trust score 55; grouped-CV F1: `0.0000`)
+   - XGBoost: accuracy `0.9622`, F1 `0.7647` (honesty gate: yellow, trust score 55; grouped-CV F1: `0.0000`)
    - KMeans: 4 clusters
-   - DBSCAN: 4 clusters, 55 noise points
-   - Association rules: 199 rules
+   - DBSCAN: 8 clusters, 49 noise points
+   - Association rules: 567 rules
 - Minikube/Kubeflow is operational with the overlay fixes applied.
 - Latest successful Kubeflow workflow confirms the fixed `src` import path behavior.
 - Streamlit dashboard is operational on `localhost:8501`; KFP UI is typically exposed on `localhost:8080` via port-forward.

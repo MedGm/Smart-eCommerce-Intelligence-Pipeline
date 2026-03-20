@@ -67,4 +67,4 @@ Maps every tool mentioned in the dossier technique to where it is used in the pr
 |-------------|----------------|------|
 | GitHub Actions | Install, pytest, ruff | `.github/workflows/ci.yml` |
 | Docker | Pipeline + dashboard containers | `Dockerfile`, `docker-compose.yml` |
-| Tests | 38 automated tests across config, preprocessing, features, ML, scoring, MCP, LLM and pipeline modules | `tests/` |
+| Tests | 66 automated tests across config, preprocessing, features, ML, scoring, MCP, LLM and pipeline modules | `tests/` |

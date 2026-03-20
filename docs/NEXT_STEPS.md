@@ -1,7 +1,7 @@
 # Project status & next steps — Mohamed & Ismail
 
 **Repo:** [github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline](https://github.com/MedGm/Smart-eCommerce-Intelligence-Pipeline)  
-**Status date:** 14 March 2026
+**Status date:** 20 March 2026
 
 ---
 
@@ -11,7 +11,7 @@
 
 | Area | Status | Current result |
 |------|--------|----------------|
-| Tests | **Green** | 38/38 pytest tests passed |
+| Tests | **Green** | 66/66 pytest tests passed |
 | Lint / format | **Green** | Ruff clean after auto-fixing formatting/import issues |
 | KFP compile | **Green** | 8-component DAG compiled successfully with `kfp==2.16.0` |
 | Local pipeline outputs | **Green** | Preprocess, features, score, RF, XGBoost, KMeans, DBSCAN, rules all produced artifacts |
@@ -22,14 +22,14 @@
 
 | Stage | Current output |
 |-------|----------------|
-| Cleaned dataset | 634 rows × 15 columns |
-| Feature matrix | 634 rows × 25 columns |
+| Cleaned dataset | 635 rows × 42 columns |
+| Feature matrix | 635 rows × 52 columns |
 | Top-K ranking | 50 scored products |
-| RandomForest | accuracy = 0.9968, F1 = 0.9923 |
-| XGBoost | accuracy = 0.9984, F1 = 0.9962 |
+| RandomForest | accuracy = 0.9685, F1 = 0.8113 (honesty gate yellow, trust score 55; grouped-CV F1 = 0.0000) |
+| XGBoost | accuracy = 0.9622, F1 = 0.7647 (honesty gate yellow, trust score 55; grouped-CV F1 = 0.0000) |
 | KMeans | 4 clusters |
-| DBSCAN | 4 clusters, 55 noise points |
-| Association rules | 199 rules |
+| DBSCAN | 8 clusters, 49 noise points |
+| Association rules | 567 rules |
 
 ### Platform state
 

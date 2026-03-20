@@ -48,7 +48,7 @@ Structured to match the dossier's 6 étapes + CI/CD transversal.
 
 ### 3.4 Étape 3 — Kubeflow Pipelines
 - Local Python pipeline (`local_pipeline.py`): 10 sequential steps.
-- KFP pipeline (`kubeflow_pipeline.py`): 4 components (preprocess, features, score, train) compiled to YAML via `kfp.compiler.Compiler`.
+- KFP pipeline (`kubeflow_pipeline.py`): 8 components (preprocess, features, score, RF, XGBoost, KMeans, DBSCAN, rules) compiled to YAML via `kfp.compiler.Compiler`.
 - Can be uploaded to a KFP instance on Minikube/Kind.
 
 ### 3.5 Étape 4 — Dashboard BI
@@ -94,10 +94,10 @@ Structured to match the dossier's 6 étapes + CI/CD transversal.
 
 - Main results: tables and figures from pipeline outputs.
 - **Known limitations:**
-  - Small dataset (565 products; dossier recommends 2000–5000).
+  - Small dataset (current snapshot: 635 products; dossier recommends 2000–5000).
   - Shopify products lack detailed fields (price, rating, category) in v1.
   - WooCommerce ratings are zero; popularity proxy is discount-driven.
-  - Classifier F1=1.0 is an artifact of small, clean separation; not generalizable.
+  - After target refactor, grouped-CV F1 remains 0.0 across shops: model still lacks cross-shop generalization.
 - **Scope choices:** why monolith, why this formula, why LLM only for summaries.
 
 ## 7. Conclusion
@@ -116,4 +116,4 @@ Structured to match the dossier's 6 étapes + CI/CD transversal.
 
 ---
 
-**Oral defense:** Every design choice should be explainable. Be ready to answer: why this scoring formula? Why LLM only for summaries? What do the clusters mean? Why is F1=1.0 not trustworthy? What would you improve with more time?
+**Oral defense:** Every design choice should be explainable. Be ready to answer: why this scoring formula? Why LLM only for summaries? What do the clusters mean? Why does grouped-CV F1 collapse across unseen shops? What would you improve with more time?

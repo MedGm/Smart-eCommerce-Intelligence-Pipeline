@@ -48,6 +48,21 @@ def test_is_in_stock():
     assert result.tolist() == [True, False, True]
 
 
+def test_is_in_stock_handles_schema_and_compact_flags():
+    df = pd.DataFrame(
+        {
+            "availability": [
+                "instock",
+                "outofstock",
+                "https://schema.org/InStock",
+                "https://schema.org/OutOfStock",
+            ]
+        }
+    )
+    result = is_in_stock(df)
+    assert result.tolist() == [True, False, True, False]
+
+
 def test_build_features_adds_columns():
     df = pd.DataFrame(
         {

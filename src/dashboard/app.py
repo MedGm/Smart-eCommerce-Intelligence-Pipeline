@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.mcp.architecture import MCPClient
+from src.scoring.topk import compute_score, topk_overall
 
 try:
     import altair as alt
@@ -1583,6 +1584,24 @@ def load_features() -> pd.DataFrame:
 
 
 @st.cache_data(ttl=60)
+def build_topk_view(mode: str, max_per_shop_ratio: float, k_overall: int = 50) -> pd.DataFrame:
+    """Build dashboard ranking view from live features (strict or diversified)."""
+    df = load_features()
+    if df.empty:
+        return pd.DataFrame()
+    df = df.copy()
+    if "score" not in df.columns:
+        df["score"] = compute_score(df)
+
+    if mode == "Strict (score-only)":
+        topk = df.nlargest(k_overall, "score")
+    else:
+        topk = topk_overall(df, k=k_overall, max_per_shop_ratio=max_per_shop_ratio)
+
+    return topk.sort_values("score", ascending=False).reset_index(drop=True)
+
+
+@st.cache_data(ttl=60)
 def load_processed_json(name: str) -> dict:
     from src.config import processed_dir
 
@@ -2057,7 +2076,7 @@ if page == "Overview":
                     )
                     .configure_title(color=C["text"], fontSize=14)
                 )
-                st.altair_chart(chart, use_container_width=True)
+                st.altair_chart(chart, width="stretch")
             else:
                 fig = px.bar(
                     cc,
@@ -2169,9 +2188,22 @@ elif page == "Product Rankings":
         unsafe_allow_html=True,
     )
 
-    topk = load_csv("topk_products.csv")
+    mode_cols = st.columns([1.2, 1.2, 2.6])
+    with mode_cols[0]:
+        ranking_mode = st.selectbox(
+            "Ranking mode",
+            ["Diversified (balanced shops)", "Strict (score-only)"],
+            index=0,
+        )
+    with mode_cols[1]:
+        if ranking_mode == "Diversified (balanced shops)":
+            shop_cap_ratio = st.slider("Max share / shop", 0.2, 0.8, 0.4, 0.05)
+        else:
+            shop_cap_ratio = 1.0
+
+    topk = build_topk_view(ranking_mode, shop_cap_ratio, k_overall=50)
     if topk.empty:
-        st.warning("No ranking data available. Run the scoring step.")
+        st.warning("No ranking data available. Run preprocess/features first.")
         st.stop()
 
     if "score" in topk.columns:
@@ -2346,7 +2378,9 @@ elif page == "Product Rankings":
         unsafe_allow_html=True,
     )
 
-    st.caption(f"Showing {len(fd)} ranked products from the current filtered view.")
+    st.caption(
+        f"Mode: {ranking_mode}. Showing {len(fd)} ranked products from the current filtered view."
+    )
 
     if "score" in fd.columns and len(fd) > 0:
         leaderboard_tab, opportunity_tab, comparison_tab, export_tab = st.tabs(
@@ -2933,6 +2967,20 @@ elif page == "ML Models":
     xgb_acc = xgb.get("accuracy") if xgb else np.nan
     rf_f1 = rf.get("f1") if rf else np.nan
     xgb_f1 = xgb.get("f1") if xgb else np.nan
+    rf_gate = rf.get("honesty_gate", {}) if rf else {}
+    xgb_gate = xgb.get("honesty_gate", {}) if xgb else {}
+    rf_status = safe_text(rf_gate.get("status"), "unknown").upper()
+    xgb_status = safe_text(xgb_gate.get("status"), "unknown").upper()
+    target_origin = safe_text((rf or xgb or {}).get("target_origin"), "unknown")
+    grouped_rf_f1 = (rf.get("grouped_cv") or {}).get("f1") if rf else None
+    grouped_xgb_f1 = (xgb.get("grouped_cv") or {}).get("f1") if xgb else None
+    grouped_rf_cal = (rf.get("grouped_cv") or {}).get("calibration") if rf else None
+    grouped_xgb_cal = (xgb.get("grouped_cv") or {}).get("calibration") if xgb else None
+    grouped_feas = (
+        (rf.get("grouped_cv_feasibility") or xgb.get("grouped_cv_feasibility") or {})
+        if (rf or xgb)
+        else {}
+    )
     best_model = (
         "XGBoost"
         if pd.notna(xgb_f1) and xgb_f1 >= (rf_f1 if pd.notna(rf_f1) else -1)
@@ -2946,6 +2994,24 @@ elif page == "ML Models":
         if rf and rf.get("feature_importance")
         else "n/a"
     )
+
+    if rf_status == "RED" or xgb_status == "RED":
+        st.error(
+            "Reliability warning: at least one model is honesty-gate RED. "
+            "Treat results as heuristic consistency, not real-world predictiveness."
+        )
+    elif rf_status == "YELLOW" or xgb_status == "YELLOW":
+        st.warning(
+            "Reliability caution: honesty-gate indicates elevated risk of over-optimistic performance."
+        )
+    else:
+        st.success("Reliability check: honesty-gate is green for available models.")
+
+    if grouped_feas.get("high_risk"):
+        st.warning(
+            "Grouped-CV feasibility warning: positive labels are concentrated in very few shops. "
+            "Cross-shop recall may collapse even with threshold tuning."
+        )
 
     driver_html = []
     if rf and rf.get("feature_importance"):
@@ -2966,6 +3032,7 @@ elif page == "ML Models":
                 <div class="model-copy">
                     The current comparison is led by <strong>{best_model}</strong>, with the best F1 currently at <strong>{max([m.get("f1", 0) for m in [rf, xgb] if m]):.3f}</strong>.
                     This page is designed to answer whether the models are merely accurate, or whether they are meaningfully stable, interpretable, and worth presenting as part of the pipeline story.
+                    Current target origin is <strong>{html.escape(target_origin)}</strong>; grouped-by-shop CV is shown below to reduce memorization risk.
                 </div>
                 <div class="model-mini-grid">
                     <div class="model-mini">
@@ -2987,6 +3054,16 @@ elif page == "ML Models":
                         <div class="model-mini-label">Feature set</div>
                         <div class="model-mini-value">{feature_count}</div>
                         <div class="model-mini-copy">Number of engineered features available to the current models.</div>
+                    </div>
+                    <div class="model-mini">
+                        <div class="model-mini-label">RF grouped F1</div>
+                        <div class="model-mini-value">{(f"{float(grouped_rf_f1):.3f}" if grouped_rf_f1 is not None else "n/a")}</div>
+                        <div class="model-mini-copy">GroupKFold score using <strong>shop_name</strong> as fold boundary.</div>
+                    </div>
+                    <div class="model-mini">
+                        <div class="model-mini-label">XGB grouped F1</div>
+                        <div class="model-mini-value">{(f"{float(grouped_xgb_f1):.3f}" if grouped_xgb_f1 is not None else "n/a")}</div>
+                        <div class="model-mini-copy">Grouped validation score for cross-shop generalization realism.</div>
                     </div>
                 </div>
             </div>
@@ -3018,8 +3095,8 @@ elif page == "ML Models":
                 <div class="model-note-copy">RandomForest F1 is <strong>{rf_f1:.3f}</strong> while XGBoost reaches <strong>{xgb_f1:.3f}</strong>. This is the more useful headline when positive-class quality matters.</div>
             </div>
             <div class="model-note">
-                <div class="model-note-title">Explainability edge</div>
-                <div class="model-note-copy">The strongest named driver is <strong>{html.escape(safe_text(top_driver))}</strong>, which gives the dashboard a concrete narrative instead of a black-box claim.</div>
+                <div class="model-note-title">Reliability status</div>
+                <div class="model-note-copy">Honesty gate status: <strong>RF {rf_status}</strong> and <strong>XGB {xgb_status}</strong>. If either is RED, model performance should be communicated as exploratory, not predictive certainty.</div>
             </div>
         </div>
         """,
@@ -3142,6 +3219,93 @@ elif page == "ML Models":
             fig.update_layout(coloraxis_showscale=False, yaxis_title="XGBoost - RandomForest")
             fig = apply_theme(fig, "Metric delta view", 360)
             st.plotly_chart(fig, width="stretch")
+
+    with st.expander("Grouped-CV calibration diagnostics", expanded=False):
+        diag_rows = []
+        if grouped_rf_cal and isinstance(grouped_rf_cal, dict):
+            rf_best = grouped_rf_cal.get("best", {})
+            rf_default = grouped_rf_cal.get("default", {})
+            diag_rows.extend(
+                [
+                    {
+                        "Model": "RandomForest",
+                        "Profile": "Best threshold",
+                        "Threshold": rf_best.get("threshold"),
+                        "Precision": rf_best.get("precision"),
+                        "Recall": rf_best.get("recall"),
+                        "F1": rf_best.get("f1"),
+                    },
+                    {
+                        "Model": "RandomForest",
+                        "Profile": "Default threshold (0.5)",
+                        "Threshold": rf_default.get("threshold"),
+                        "Precision": rf_default.get("precision"),
+                        "Recall": rf_default.get("recall"),
+                        "F1": rf_default.get("f1"),
+                    },
+                ]
+            )
+        if grouped_xgb_cal and isinstance(grouped_xgb_cal, dict):
+            xgb_best = grouped_xgb_cal.get("best", {})
+            xgb_default = grouped_xgb_cal.get("default", {})
+            diag_rows.extend(
+                [
+                    {
+                        "Model": "XGBoost",
+                        "Profile": "Best threshold",
+                        "Threshold": xgb_best.get("threshold"),
+                        "Precision": xgb_best.get("precision"),
+                        "Recall": xgb_best.get("recall"),
+                        "F1": xgb_best.get("f1"),
+                    },
+                    {
+                        "Model": "XGBoost",
+                        "Profile": "Default threshold (0.5)",
+                        "Threshold": xgb_default.get("threshold"),
+                        "Precision": xgb_default.get("precision"),
+                        "Recall": xgb_default.get("recall"),
+                        "F1": xgb_default.get("f1"),
+                    },
+                ]
+            )
+        if diag_rows:
+            diag_df = pd.DataFrame(diag_rows)
+            st.dataframe(
+                diag_df.style.format(
+                    {
+                        "Threshold": "{:.2f}",
+                        "Precision": "{:.3f}",
+                        "Recall": "{:.3f}",
+                        "F1": "{:.3f}",
+                    }
+                ),
+                height=220,
+            )
+        else:
+            st.info("Grouped-CV calibration diagnostics are not available in current metrics.")
+
+    with st.expander("Positive-label concentration by shop", expanded=False):
+        by_shop = grouped_feas.get("by_shop") if isinstance(grouped_feas, dict) else None
+        if by_shop:
+            by_shop_df = pd.DataFrame(by_shop)
+            if not by_shop_df.empty:
+                by_shop_df["positive_rate"] = (
+                    by_shop_df["positives"] / by_shop_df["rows"].replace(0, np.nan)
+                ).fillna(0.0)
+                st.dataframe(
+                    by_shop_df[["shop_name", "positives", "rows", "positive_rate"]].style.format(
+                        {"positive_rate": "{:.3f}"}
+                    ),
+                    height=240,
+                )
+                st.caption(
+                    f"Shops with positives: {grouped_feas.get('shops_with_positive_labels', 'n/a')} / {grouped_feas.get('total_shops', 'n/a')}; "
+                    f"max single-shop positive share: {float(grouped_feas.get('max_positive_share_single_shop', 0.0)) * 100:.1f}%"
+                )
+        else:
+            st.info(
+                "Positive-label concentration diagnostics are not available in current metrics."
+            )
 
 
 # ══════════════════════════════════════════════════════════════
@@ -3696,12 +3860,12 @@ elif page == "LLM Insights":
 
         c1, c2, c3 = st.columns(3)
 
-        if c1.button("Executive Summary", use_container_width=True, key="llm_exec_summary"):
+        if c1.button("Executive Summary", width="stretch", key="llm_exec_summary"):
             with st.spinner("Calling Gemini API..."):
                 st.markdown("### Executive Summary")
                 st.info(get_llm_summary())
 
-        if c2.button("Strategic Recommendations", use_container_width=True, key="llm_strategy"):
+        if c2.button("Strategic Recommendations", width="stretch", key="llm_strategy"):
             with st.spinner("Generating Chain-of-Thought Strategy..."):
                 from src.llm.summarizer import generate_strategy_report
 
@@ -3722,7 +3886,7 @@ elif page == "LLM Insights":
                 st.markdown("### Marketing Strategy & Trends")
                 st.success(generate_strategy_report(data))
 
-        if c3.button("Competitive Profiling", use_container_width=True, key="llm_profile"):
+        if c3.button("Competitive Profiling", width="stretch", key="llm_profile"):
             with st.spinner("Profiling Top Products..."):
                 from src.llm.summarizer import generate_product_profile
 
