@@ -87,11 +87,11 @@ Defined in `src/scraping/base.py`.
 
 ```
 data/
-  raw/shopify/products.json        (161 products, 5 stores)
-  raw/woocommerce/products.json    (404 products, 3 stores)
+  raw/shopify/products.json        (230 products, 5 stores)
+  raw/woocommerce/products.json    (405 products, 3 stores)
   processed/
-    cleaned_products.parquet       (565 rows, 15 cols)
-    features.parquet               (565 rows, 25 cols)
+    cleaned_products.parquet       (635 rows, 42 cols)
+    features.parquet               (635 rows, 52 cols)
   analytics/
     topk_products.csv
     topk_per_category.csv
@@ -100,8 +100,8 @@ data/
     model_metrics_xgboost.json     (XGBoost)
     clusters.csv                   (KMeans, 4 clusters)
     pca_viz.csv
-    dbscan_clusters.csv            (DBSCAN, 6 clusters + 24 outliers)
-    association_rules.csv          (274 rules)
+    dbscan_clusters.csv            (DBSCAN, 8 clusters + 49 outliers)
+    association_rules.csv          (567 rules)
     llm_usage_log.jsonl
     mcp_access_log.jsonl
 ```
@@ -120,4 +120,4 @@ data/
 ## Orchestration
 
 - **Local:** `src/pipeline/local_pipeline.py` runs 10 steps sequentially.
-- **Kubeflow:** `src/pipeline/kubeflow_pipeline.py` defines 4 KFP components; compiled to `kubeflow_smart_ecommerce_pipeline.yaml`.
+- **Kubeflow:** `src/pipeline/kubeflow_pipeline.py` defines 8 KFP components (preprocess, features, score, RF, XGBoost, KMeans, DBSCAN, association rules); compiled to `kubeflow_smart_ecommerce_pipeline.yaml`.

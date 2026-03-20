@@ -1,52 +1,52 @@
-# Data quality report — v2 (11 March, after multi-store scraping)
+# Data quality report — v3 (20 March, post full pipeline run)
 
 ## Dataset snapshot
 
-| Metric | v1 | **v2 (current)** |
+| Metric | v1 | **v3 (current)** |
 |--------|-----|---------|
-| Total products | 220 | **565** |
+| Total products | 220 | **635** |
 | Shops | 2 | **8** |
-| Niches | 2 (rugs, seasoning) | **6** (rugs, gaming, denim, fashion, coffee, seasoning, drinkware, kitchen) |
-| Platforms | Shopify 92 / WC 128 | **Shopify 161 / WC 404** |
+| Niches | 2 (rugs, seasoning) | **8** (rugs, gaming, denim, fashion, coffee, seasoning, drinkware, kitchen) |
+| Platforms | Shopify 92 / WC 128 | **Shopify 230 / WC 405** |
 
 ## Products per shop
 
 | Shop | Platform | Products | Niche |
 |------|----------|----------|-------|
 | NutriBullet | WooCommerce | 184 | Kitchen appliances |
-| Dan-O's Seasoning | WooCommerce | 128 | Food/Seasoning |
+| Dan-O's Seasoning | WooCommerce | 129 | Food/Seasoning |
 | Nalgene | WooCommerce | 92 | Drinkware |
-| Fashion Nova | Shopify | 61 | Clothing |
-| Ruggable | Shopify | 47 | Home/Rugs |
+| Ruggable | Shopify | 70 | Home/Rugs |
+| Fashion Nova | Shopify | 64 | Clothing |
 | Death Wish Coffee | Shopify | 29 | Coffee |
-| Turtle Beach | Shopify | 22 | Gaming/Electronics |
-| Hiut Denim | Shopify | 2 | Denim/Fashion |
+| Turtle Beach | Shopify | 59 | Gaming/Electronics |
+| Hiut Denim | Shopify | 8 | Denim/Fashion |
 
 ## Field coverage
 
-| Field | v1 | **v2** | Notes |
+| Field | v1 | **v3** | Notes |
 |-------|-----|--------|-------|
-| price | 58% (128/220) | **77% (433/565)** | Fixed: WC cents → dollars; Shopify enriched via `/products/<slug>.json` |
-| old_price | 32% | **16% (88/565)** | Only products with active promotions |
-| rating > 0 | 0% | **17% (96/565)** | Mainly Turtle Beach (JSON-LD aggregateRating) |
-| review_count > 0 | 0% | **17% (96/565)** | Same source as ratings |
-| real category | 32% | **74% (419/565)** | Shopify `product_type` + collection URL inference |
-| description | 58% | **98% (555/565)** | Shopify JSON + WC API; HTML stripped |
-| availability | 5% | **5% (29/565)** | Most stores don't expose stock via API |
-| geography | 0% | **100% (565/565)** | Assigned from store config (US/UK) |
+| price | 58% (128/220) | **87.6% (556/635)** | Fixed: WC cents → dollars; Shopify enriched via `/products/<slug>.json` |
+| old_price | 32% | **13.9% (88/635)** | Only products with active promotions |
+| rating > 0 | 0% | **16.1% (102/635)** | Mainly Turtle Beach/Fashion Nova review sources |
+| review_count > 0 | 0% | **16.2% (103/635)** | Same source family as ratings |
+| real category | 32% | **80.6% (512/635)** | Path-aware category normalization + taxonomy evidence |
+| description | 58% | **97.5% (619/635)** | Shopify JSON + WC API; HTML stripped |
+| availability | 5% | **87.6% (556/635)** | Availability now largely present in current extraction |
+| geography | 0% | **100% (635/635)** | Assigned from store config (US/UK) |
 
-## Price statistics (v2)
+## Price statistics (v3)
 
 | Stat | Value |
 |------|-------|
-| Count (non-null) | 433 |
-| Mean | $25.06 |
-| Std | $30.53 |
+| Count (non-null) | 556 |
+| Mean | $40.11 |
+| Std | $66.58 |
 | Min | $0.00 |
-| 25% | $9.99 |
-| Median | $16.99 |
-| 75% | $24.99 |
-| Max | $244.99 |
+| 25% | $11.00 |
+| Median | $19.99 |
+| 75% | $38.97 |
+| Max | $649.99 |
 
 ## What was fixed vs v1
 
@@ -56,24 +56,24 @@
 4. **Categories "none"** → Shopify `product_type` used; collection name as fallback; preprocessing normalizes empty → NaN → "uncategorized".
 5. **Geography null** → assigned from store config in `stores.py`.
 6. **Only 2 stores** → expanded to 8 stores across 6 niches.
-7. **F1=1.0 artifact** → cross-validation now used in RF and XGBoost.
+7. **Proxy-target inflation corrected** → models now use an observed-signal target with grouped-by-shop validation.
 
 ## Remaining limitations
 
 | Issue | Impact | Possible fix |
 |-------|--------|-------------|
-| 23% products lack prices | Score/features less reliable for those | Scrape more Shopify collections; some stores block `.json` endpoint |
-| Ratings for only 17% | Popularity proxy still discount-heavy | Add stores with public reviews; try scraping review widgets |
-| 146 "uncategorized" products | Weakens category-level analytics | Scrape specific sub-collections instead of `/collections/all` |
-| 565 < 2000 recommended | ML models have limited generalization | Add 5–10 more stores from validated candidates |
-| Hiut Denim: only 2 products | Negligible contribution | Remove or replace with larger store |
-| Availability data sparse (5%) | Stock analysis not possible | Some stores expose `available` in variants but not in listing |
+| 12.4% products still lack prices | Score/features less reliable for those | Scrape more Shopify collections; some stores block `.json` endpoint |
+| Ratings for only ~16% | Popularity proxy remains partially rating-sparse | Add stores with public reviews; scrape review widgets when available |
+| 123 "uncategorized" products | Weakens category-level analytics | Scrape specific sub-collections instead of `/collections/all` |
+| 635 < 2000 recommended | ML models have limited generalization | Add 5–10 more stores from validated candidates |
+| Hiut Denim still small (8 products) | Low contribution to global patterns | Remove or replace with a larger denim/fashion source |
+| Grouped-CV F1 remains 0.0 | Current features do not generalize positives across unseen shops | Add richer cross-shop signals, rebalance classes, and tune decision thresholds |
 
-## ML results (v2)
+## ML results (v3)
 
-| Model | Metric | v1 | **v2** |
+| Model | Metric | v1 | **v3** |
 |-------|--------|-----|--------|
-| RandomForest | F1 (CV) | 1.000 (overfit) | **0.996** |
-| KMeans | Silhouette | 0.473 | **0.261** (more diverse data) |
-| DBSCAN | Outliers | 24 | **56** |
-| Association rules | Rules found | 274 | **874** |
+| RandomForest | F1 (CV) | 1.000 (overfit) | **0.811** (honesty gate yellow; grouped-CV F1 = 0.000) |
+| KMeans | Silhouette | 0.473 | **0.273** |
+| DBSCAN | Outliers | 24 | **49** |
+| Association rules | Rules found | 274 | **567** |
