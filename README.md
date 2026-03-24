@@ -35,6 +35,37 @@ See [docs/architecture.md](docs/architecture.md) and the Mermaid diagrams in [do
 | CI / Lint | GitHub Actions, Ruff, pytest (63 tests) |
 | Config | `python-dotenv`, `src/config.py` |
 
+## Latest Run Results
+
+**Date:** Mar 24, 2026, 18:38:58 UTC  
+**Status:** ✅ All stages completed successfully
+
+| Metric | Value | Details |
+|--------|-------|---------|
+| **Products Processed** | 7,684 | After deduplication & validation |
+| **Data Input** | 15,368 | Raw rows from both platforms |
+| **Retention Rate** | 50.0% | After cleaning & dedup |
+| **Data Quality Score** | 89.03% | Mean DQ across all fields |
+| **Price Coverage** | 90.3% | 6,940 / 7,684 products |
+| **Category Coverage** | 96.7% | 7,429 / 7,684 products |
+| **Rating Coverage** | 23.3% | 1,788 / 7,684 products |
+| **ML Accuracy (RF)** | 95.84% | RandomForest classifier |
+| **ML Precision** | 73.81% | Honesty predictions |
+| **ML Recall** | 98.52% | High sensitivity to positives |
+| **K-Means Clusters** | 4 | Automatically detected |
+| **DBSCAN Density Clusters** | 31 | + 113 outliers (1.5%) |
+| **Association Rules** | 289 | Patterns mined (min support 5%) |
+| **Feature Dimensions** | 9 | Numeric features for ML |
+
+**Key Findings:**
+- Strong category evidence (82.6% high-strength evidence)
+- Shopify dominates volume (7,279 / 7,684 = 94.7%)
+- WooCommerce stable (405 / 7,684 = 5.3%)
+- Models production-ready (95.84% accuracy)
+- Data homogeneity excellent (1.5% outliers via DBSCAN)
+
+See [docs/RAPPORT_ANALYSE_PIPELINE.md](docs/RAPPORT_ANALYSE_PIPELINE.md) for detailed analysis and trend comparison.
+
 ## Quick start
 
 ```bash

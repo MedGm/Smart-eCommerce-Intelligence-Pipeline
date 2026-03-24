@@ -72,7 +72,7 @@ def run():
 
     metrics = {
         "model": "RandomForest",
-        "method": "cross_validation+grouped_cv",
+        "method": "cross_validation",
         "n_samples": len(df),
         "n_features": len(features),
         "features": features,
@@ -82,6 +82,7 @@ def run():
         "f1": float(f1_score(y, y_pred_cv, zero_division=0)),
         "confusion_matrix": confusion_matrix(y, y_pred_cv).tolist(),
         "calibration": cv_threshold,
+        "grouped_cv_status": "not_run",
     }
 
     if "shop_name" in df.columns:
@@ -133,8 +134,13 @@ def run():
                 "group_key": "shop_name",
                 "calibration": grouped_threshold,
             }
+            metrics["method"] = "cross_validation+grouped_cv"
+            metrics["grouped_cv_status"] = "ok"
         except Exception as e:
             metrics["grouped_cv"] = {"error": str(e), "group_key": "shop_name"}
+            metrics["grouped_cv_status"] = "error"
+    else:
+        metrics["grouped_cv_status"] = "skipped"
 
     diagnostics = label_integrity_diagnostics(X, y, clf, cv=cv, random_state=42)
     honesty = honesty_gate(

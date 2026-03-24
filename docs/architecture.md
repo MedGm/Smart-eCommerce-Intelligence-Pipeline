@@ -87,11 +87,11 @@ Defined in `src/scraping/base.py`.
 
 ```
 data/
-  raw/shopify/products.json        (230 products, 5 stores)
+  raw/shopify/products.json        (~2500+ products, 13 stores) [NEW: +8 stores added]
   raw/woocommerce/products.json    (405 products, 3 stores)
   processed/
-    cleaned_products.parquet       (635 rows, 42 cols)
-    features.parquet               (635 rows, 52 cols)
+    cleaned_products.parquet       (~2900+ rows, 42 cols) [after preprocessing]
+    features.parquet               (~2900+ rows, 52 cols) [after feature engineering]
   analytics/
     topk_products.csv
     topk_per_category.csv

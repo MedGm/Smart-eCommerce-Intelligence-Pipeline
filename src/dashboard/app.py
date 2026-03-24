@@ -2076,7 +2076,7 @@ if page == "Overview":
                     )
                     .configure_title(color=C["text"], fontSize=14)
                 )
-                st.altair_chart(chart, width="stretch")
+                st.altair_chart(chart, use_container_width=True)
             else:
                 fig = px.bar(
                     cc,
@@ -3860,12 +3860,12 @@ elif page == "LLM Insights":
 
         c1, c2, c3 = st.columns(3)
 
-        if c1.button("Executive Summary", width="stretch", key="llm_exec_summary"):
+        if c1.button("Executive Summary", use_container_width=True, key="llm_exec_summary"):
             with st.spinner("Calling Gemini API..."):
                 st.markdown("### Executive Summary")
                 st.info(get_llm_summary())
 
-        if c2.button("Strategic Recommendations", width="stretch", key="llm_strategy"):
+        if c2.button("Strategic Recommendations", use_container_width=True, key="llm_strategy"):
             with st.spinner("Generating Chain-of-Thought Strategy..."):
                 from src.llm.summarizer import generate_strategy_report
 
@@ -3886,7 +3886,7 @@ elif page == "LLM Insights":
                 st.markdown("### Marketing Strategy & Trends")
                 st.success(generate_strategy_report(data))
 
-        if c3.button("Competitive Profiling", width="stretch", key="llm_profile"):
+        if c3.button("Competitive Profiling", use_container_width=True, key="llm_profile"):
             with st.spinner("Profiling Top Products..."):
                 from src.llm.summarizer import generate_product_profile
 

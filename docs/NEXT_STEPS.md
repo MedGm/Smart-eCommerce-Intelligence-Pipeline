@@ -96,7 +96,7 @@ Definition of done:
 | # | Owner | Task |
 |---|-------|------|
 | 3.1 | Ismail | Improve missing price/category/rating coverage for stores that still have partial metadata. |
-| 3.2 | Both | Add stronger stores or more category-rich collections to improve downstream model generalization. |
+| 3.2 | Both | ✅ DONE: Added 8 strong stores (Allbirds, Represent, Born Primitive, NoBull, Goat Tape, Ten Thousand, Cuts, Set Active) → 13 Shopify + 3 WooCommerce (16 total). Expected +2000+ new products. |
 | 3.3 | Mohamed | Re-run preprocessing and feature engineering after each meaningful scraper/data upgrade. |
 | 3.4 | Both | Add stricter malformed-record validation and explicit reject/repair paths. |
 | 3.5 | Both | Strengthen dedup + normalization rules across title/shop/category/url fields. |

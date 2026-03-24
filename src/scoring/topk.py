@@ -40,7 +40,7 @@ def compute_score(df: pd.DataFrame) -> pd.Series:
     """
     rating = df.get("rating", pd.Series(0.0, index=df.index)).fillna(0)
     rating_norm = normalize(rating / 5.0)
-    review_count = df.get("review_count", 0).fillna(0).astype(float)
+    review_count = df.get("review_count", pd.Series(0.0, index=df.index)).fillna(0).astype(float)
     review_norm = normalize(review_count)
     availability = (
         df.get("is_in_stock", True).astype(float)
@@ -50,7 +50,7 @@ def compute_score(df: pd.DataFrame) -> pd.Series:
     availability_norm = (
         availability if isinstance(availability, pd.Series) else pd.Series(1.0, index=df.index)
     )
-    discount = df.get("discount_pct", 0).fillna(0)
+    discount = df.get("discount_pct", pd.Series(0.0, index=df.index)).fillna(0)
     discount_norm = normalize(discount)
 
     # Row-level signal availability masks.
@@ -96,12 +96,12 @@ def topk_overall(df: pd.DataFrame, k: int = 50, max_per_shop_ratio: float = 0.4)
         return ranked.reset_index(drop=True)
 
     cap = max(1, int(k * max_per_shop_ratio))
-    selected_idx: list[int] = []
+    selected_idx: list[object] = []
     counts: Counter = Counter()
 
     # Representation floor: keep the best row per shop.
     for _, group in ranked.groupby("shop_name", sort=False):
-        idx = int(group.index[0])
+        idx = group.index[0]
         selected_idx.append(idx)
         counts[group.iloc[0]["shop_name"]] += 1
 
@@ -119,8 +119,8 @@ def topk_overall(df: pd.DataFrame, k: int = 50, max_per_shop_ratio: float = 0.4)
         shop = row["shop_name"]
         if counts[shop] >= cap:
             continue
-        selected_idx.append(int(idx))
-        selected_set.add(int(idx))
+        selected_idx.append(idx)
+        selected_set.add(idx)
         counts[shop] += 1
 
     # Backfill if cap blocked completion.
@@ -128,10 +128,10 @@ def topk_overall(df: pd.DataFrame, k: int = 50, max_per_shop_ratio: float = 0.4)
         for idx in ranked.index:
             if len(selected_idx) >= k:
                 break
-            if int(idx) in selected_set:
+            if idx in selected_set:
                 continue
-            selected_idx.append(int(idx))
-            selected_set.add(int(idx))
+            selected_idx.append(idx)
+            selected_set.add(idx)
 
     return (
         ranked.loc[selected_idx]
