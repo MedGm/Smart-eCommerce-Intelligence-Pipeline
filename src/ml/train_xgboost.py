@@ -93,7 +93,7 @@ def run():
 
     metrics = {
         "model": "XGBoost",
-        "method": "cross_validation+grouped_cv",
+        "method": "cross_validation",
         "n_samples": len(df),
         "n_features": len(features),
         "features": features,
@@ -104,6 +104,7 @@ def run():
         "confusion_matrix": confusion_matrix(y, y_pred).tolist(),
         "calibration": cv_threshold,
         "scale_pos_weight": scale_pos_weight,
+        "grouped_cv_status": "not_run",
     }
 
     if "shop_name" in df.columns:
@@ -155,8 +156,13 @@ def run():
                 "group_key": "shop_name",
                 "calibration": grouped_threshold,
             }
+            metrics["method"] = "cross_validation+grouped_cv"
+            metrics["grouped_cv_status"] = "ok"
         except Exception as e:
             metrics["grouped_cv"] = {"error": str(e), "group_key": "shop_name"}
+            metrics["grouped_cv_status"] = "error"
+    else:
+        metrics["grouped_cv_status"] = "skipped"
 
     diagnostics = label_integrity_diagnostics(X, y, clf, cv=cv, random_state=42)
     honesty = honesty_gate(

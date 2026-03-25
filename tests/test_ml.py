@@ -3,7 +3,13 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
-from src.ml.utils import get_feature_columns, honesty_gate, label_integrity_diagnostics
+from src.ml.utils import (
+    build_high_potential_target,
+    get_feature_columns,
+    honesty_gate,
+    label_integrity_diagnostics,
+    optimize_f1_threshold,
+)
 
 
 def _sample_df():
@@ -139,3 +145,59 @@ def test_honesty_gate_green_case():
     )
     assert gate["status"] == "green"
     assert gate["flags"] == []
+
+
+def test_build_high_potential_target_base_rule_without_fallback():
+    n = 30
+    df = pd.DataFrame(
+        {
+            "rating": [4.6] * 24 + [3.5] * 6,
+            "review_count": [20] * 24 + [0] * 6,
+            "is_in_stock": [True] * n,
+            "dq_score": [0.8] * n,
+        }
+    )
+
+    target, meta = build_high_potential_target(df)
+
+    assert int(target.sum()) == 24
+    assert meta["fallback_used"] is False
+    assert meta["rows"] == n
+    assert meta["positives"] == 24
+    assert 0.0 <= meta["positive_rate"] <= 1.0
+    assert meta["strategy"] == "observed_signal_thresholds"
+
+
+def test_build_high_potential_target_uses_fallback_when_base_too_sparse():
+    n = 30
+    df = pd.DataFrame(
+        {
+            "rating": [3.8] * n,
+            "review_count": [2] * 25 + [60] * 5,
+            "is_in_stock": [True] * n,
+            "dq_score": [0.2] * 25 + [0.95] * 5,
+        }
+    )
+
+    target, meta = build_high_potential_target(df)
+
+    assert meta["fallback_used"] is True
+    assert meta["rows"] == n
+    assert meta["positives"] == int(target.sum())
+    assert int(target.sum()) > 0
+
+
+def test_optimize_f1_threshold_expected_grid_result_and_schema():
+    y_true = [0, 0, 1, 1]
+    y_proba = [0.1, 0.4, 0.6, 0.9]
+    result = optimize_f1_threshold(y_true, y_proba, grid=[0.3, 0.5, 0.7])
+
+    assert result["strategy"] == "maximize_f1"
+    assert result["best"]["threshold"] == 0.5
+    assert result["grid_min"] == 0.3
+    assert result["grid_max"] == 0.7
+    assert result["grid_size"] == 3
+
+    expected_keys = {"threshold", "accuracy", "precision", "recall", "f1"}
+    assert set(result["best"].keys()) == expected_keys
+    assert set(result["default"].keys()) == expected_keys

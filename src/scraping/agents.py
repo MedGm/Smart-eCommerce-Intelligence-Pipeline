@@ -48,6 +48,7 @@ class WorkerAgent:
                     shop_name=store["name"],
                     geography=store.get("geography"),
                     collections=store.get("collections", ["all"]),
+                    max_collection_pages=store.get("max_collection_pages", 20),
                 )
                 records = scraper.scrape()
                 if records:

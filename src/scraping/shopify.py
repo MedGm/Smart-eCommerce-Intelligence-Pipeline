@@ -38,18 +38,73 @@ class ShopifyScraper(BaseScraper):
         shop_name: str = "Unknown",
         geography: str | None = None,
         collections: list[str] | None = None,
+        max_collection_pages: int = 20,
     ):
         super().__init__(output_dir)
         self.store_url = store_url.rstrip("/")
         self.shop_name = shop_name
         self.geography = geography
         self.collections = collections or ["all"]
+        self.max_collection_pages = max(1, int(max_collection_pages))
 
     def _collection_urls(self) -> list[str]:
         return [f"{self.store_url}/collections/{c}" for c in self.collections]
 
+    def _extract_product_slugs_json_listing(self) -> list[dict]:
+        """Use Shopify JSON listing endpoints to collect catalog slugs at scale.
+
+        Endpoint pattern:
+        /collections/<handle>/products.json?limit=250&page=N
+        """
+        results: list[dict] = []
+        seen_slugs: set[str] = set()
+
+        for collection in self.collections:
+            page_num = 1
+            while page_num <= self.max_collection_pages:
+                url = (
+                    f"{self.store_url}/collections/{collection}/products.json"
+                    f"?limit=250&page={page_num}"
+                )
+                try:
+                    resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+                    if resp.status_code != 200:
+                        if page_num == 1:
+                            print(
+                                f"  [{self.shop_name}] JSON listing unavailable for collection '{collection}'"
+                            )
+                        break
+                    payload = resp.json()
+                except (requests.RequestException, ValueError):
+                    break
+
+                products = payload.get("products") or []
+                if not products:
+                    break
+
+                before = len(seen_slugs)
+                for product in products:
+                    handle = str(product.get("handle") or "").strip()
+                    if not handle or handle in seen_slugs:
+                        continue
+                    seen_slugs.add(handle)
+                    results.append({"slug": handle, "collection": collection})
+
+                added = len(seen_slugs) - before
+                print(
+                    f"  [{self.shop_name}] JSON page {page_num} ({collection}): "
+                    f"{len(products)} items, +{added} new slugs ({len(seen_slugs)} total)"
+                )
+
+                # Reaching <250 usually indicates the final page.
+                if len(products) < 250:
+                    break
+                page_num += 1
+
+        return results
+
     def _extract_product_slugs_playwright(self) -> list[dict]:
-        """Use Playwright to crawl collections and extract product slugs + collection context."""
+        """Use Playwright to crawl paginated collections and extract slugs."""
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright
@@ -68,35 +123,52 @@ class ShopifyScraper(BaseScraper):
 
                 for collection_url in self._collection_urls():
                     collection_name = collection_url.rstrip("/").split("/")[-1]
-                    try:
-                        print(f"  [{self.shop_name}] Crawling {collection_url}")
-                        page.goto(
-                            collection_url,
-                            timeout=40_000,
-                            wait_until="domcontentloaded",
+                    empty_or_static_pages = 0
+                    for page_num in range(1, self.max_collection_pages + 1):
+                        paged_url = f"{collection_url}?page={page_num}"
+                        before_count = len(seen_slugs)
+                        try:
+                            print(f"  [{self.shop_name}] Crawling {paged_url}")
+                            page.goto(
+                                paged_url,
+                                timeout=40_000,
+                                wait_until="domcontentloaded",
+                            )
+                        except PlaywrightTimeoutError:
+                            print(f"  [{self.shop_name}] Timeout: {paged_url}")
+                            if page_num >= 2:
+                                break
+                            continue
+
+                        for _ in range(6):
+                            page.mouse.wheel(0, 2000)
+                            page.wait_for_timeout(600)
+
+                        anchors = page.query_selector_all("a[href*='/products/']")
+                        for a in anchors:
+                            href = a.get_attribute("href") or ""
+                            if "/products/" not in href:
+                                continue
+                            slug = (
+                                href.split("/products/")[-1].split("?")[0].split("#")[0].rstrip("/")
+                            )
+                            if not slug or slug in seen_slugs:
+                                continue
+                            seen_slugs.add(slug)
+                            results.append({"slug": slug, "collection": collection_name})
+
+                        newly_found = len(seen_slugs) - before_count
+                        print(
+                            f"  [{self.shop_name}] Page {page_num}: {len(anchors)} anchors, +{newly_found} new slugs ({len(seen_slugs)} total)"
                         )
-                    except PlaywrightTimeoutError:
-                        print(f"  [{self.shop_name}] Timeout: {collection_url}")
-                        continue
 
-                    for _ in range(8):
-                        page.mouse.wheel(0, 2000)
-                        page.wait_for_timeout(800)
-
-                    anchors = page.query_selector_all("a[href*='/products/']")
-                    for a in anchors:
-                        href = a.get_attribute("href") or ""
-                        if "/products/" not in href:
-                            continue
-                        slug = href.split("/products/")[-1].split("?")[0].split("#")[0].rstrip("/")
-                        if not slug or slug in seen_slugs:
-                            continue
-                        seen_slugs.add(slug)
-                        results.append({"slug": slug, "collection": collection_name})
-
-                    print(
-                        f"  [{self.shop_name}] Found {len(anchors)} anchors, {len(seen_slugs)} unique slugs so far"
-                    )
+                        # Stop early when pagination is exhausted.
+                        if len(anchors) == 0 or newly_found == 0:
+                            empty_or_static_pages += 1
+                        else:
+                            empty_or_static_pages = 0
+                        if empty_or_static_pages >= 2:
+                            break
 
                 browser.close()
         except Exception as exc:
@@ -319,7 +391,19 @@ class ShopifyScraper(BaseScraper):
         now = datetime.now(timezone.utc).isoformat()
         records: list[ProductRecord] = []
 
-        slug_info = self._extract_product_slugs_playwright()
+        slug_info_json = self._extract_product_slugs_json_listing()
+        slug_info_playwright = self._extract_product_slugs_playwright()
+
+        # Merge JSON-listing + Playwright discoveries while preserving first-seen order.
+        slug_info: list[dict] = []
+        seen_slugs: set[str] = set()
+        for info in slug_info_json + slug_info_playwright:
+            slug = info.get("slug", "")
+            if not slug or slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+            slug_info.append(info)
+
         print(f"  [{self.shop_name}] Collected {len(slug_info)} product slugs, enriching...")
 
         for i, info in enumerate(slug_info):
