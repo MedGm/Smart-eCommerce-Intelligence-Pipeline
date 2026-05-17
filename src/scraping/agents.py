@@ -78,44 +78,20 @@ class WorkerAgent:
 class CoordinatorAgent:
     """
     A2A Coordinator Agent.
-    Uses an LLM to generate a distribution plan for a list of stores, then spawns
-    WorkerAgents concurrently to execute the plan.
+    Distributes stores across WorkerAgents using round-robin, then spawns them
+    concurrently to execute the plan.
     """
 
     def __init__(self, max_workers: int = 3):
         self.max_workers = max_workers
-        self.llm = self._init_llm()
-
-    def _init_llm(self):
-        try:
-            import os
-
-            from dotenv import load_dotenv
-            from langchain_google_genai import ChatGoogleGenerativeAI
-
-            load_dotenv()
-
-            if not os.environ.get("GEMINI_API_KEY"):
-                logger.warning(
-                    "CoordinatorAgent: No GEMINI_API_KEY. Using fallback round-robin planner."
-                )
-                return None
-            return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
-        except ImportError:
-            logger.warning(
-                "CoordinatorAgent: Langchain not installed. Using fallback round-robin planner."
-            )
-            return None
 
     def plan_distribution(
         self, shopify_stores: list[dict], wc_stores: list[dict]
     ) -> dict[str, list[ScrapingTask]]:
-        """Ask the LLM to create a balanced distribution plan, or fallback to simple round-robin."""
+        """Distribute stores across workers using round-robin."""
         all_tasks = [ScrapingTask("shopify", s) for s in shopify_stores] + [
             ScrapingTask("woocommerce", s) for s in wc_stores
         ]
-
-        # Fallback planner (if no API key or LLM fails)
         return self._round_robin_plan(all_tasks)
 
     def _round_robin_plan(self, tasks: list[ScrapingTask]) -> dict[str, list[ScrapingTask]]:

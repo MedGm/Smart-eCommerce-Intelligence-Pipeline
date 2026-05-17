@@ -2,6 +2,7 @@
 Clustering: KMeans for product segments. Export cluster labels and PCA viz data.
 """
 
+import json
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
@@ -50,6 +51,14 @@ def run(n_clusters: int = 4):
     X2 = pca.fit_transform(X_scaled)
     viz = pd.DataFrame({"pc1": X2[:, 0], "pc2": X2[:, 1], "cluster": df["cluster"]})
     viz.to_csv(out_dir / "pca_viz.csv", index=False)
+
+    cluster_metrics = {
+        "n_clusters": n_clusters,
+        "silhouette_score": float(sil),
+        "n_samples": len(df),
+    }
+    with open(out_dir / "cluster_metrics.json", "w") as f:
+        json.dump(cluster_metrics, f, indent=2)
 
     logger.info("Clustering done: clusters.csv, pca_viz.csv (silhouette=%.3f)", sil)
     return df

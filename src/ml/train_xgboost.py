@@ -9,6 +9,8 @@ to avoid circular data leakage.
 
 import json
 
+import joblib
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -18,7 +20,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GroupKFold, StratifiedKFold, cross_val_predict
 
-from src.config import analytics_dir, get_logger
+from src.config import analytics_dir, get_logger, models_dir
 from src.ml.utils import (
     build_high_potential_target,
     get_feature_columns,
@@ -184,6 +186,20 @@ def run():
             diagnostics["shuffled_label_accuracy"],
             diagnostics["majority_baseline_accuracy"],
         )
+
+    # Fit on full data, then persist model and predictions
+    clf.fit(X, y)
+
+    # Persist model
+    m_dir = models_dir()
+    m_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(clf, m_dir / "xgboost.joblib")
+
+    # Write per-product predictions
+    proba_full = clf.predict_proba(X)[:, 1]
+    preds_df = df[["product_id"]].copy() if "product_id" in df.columns else pd.DataFrame(index=df.index)
+    preds_df["xgb_proba"] = proba_full
+    preds_df.to_csv(out_dir / "xgb_predictions.csv", index=False)
 
     with open(out_dir / "model_metrics_xgboost.json", "w") as f:
         json.dump(metrics, f, indent=2)

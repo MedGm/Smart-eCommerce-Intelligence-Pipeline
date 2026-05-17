@@ -19,7 +19,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
-from src.config import DEFAULT_USER_AGENT, SCRAPING_DELAY, SCRAPING_TIMEOUT
+from src.config import DEFAULT_USER_AGENT, SCRAPING_DELAY, SCRAPING_TIMEOUT, get_logger
 from src.scraping.base import BaseScraper, ProductRecord
 from src.scraping.html_fallback import extract_product_fields_from_html
 
@@ -46,6 +46,7 @@ class ShopifyScraper(BaseScraper):
         self.geography = geography
         self.collections = collections or ["all"]
         self.max_collection_pages = max(1, int(max_collection_pages))
+        self.logger = get_logger(__name__)
 
     def _collection_urls(self) -> list[str]:
         return [f"{self.store_url}/collections/{c}" for c in self.collections]
@@ -70,8 +71,10 @@ class ShopifyScraper(BaseScraper):
                     resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
                     if resp.status_code != 200:
                         if page_num == 1:
-                            print(
-                                f"  [{self.shop_name}] JSON listing unavailable for collection '{collection}'"
+                            self.logger.warning(
+                                "  [%s] JSON listing unavailable for collection '%s'",
+                                self.shop_name,
+                                collection,
                             )
                         break
                     payload = resp.json()
@@ -91,9 +94,14 @@ class ShopifyScraper(BaseScraper):
                     results.append({"slug": handle, "collection": collection})
 
                 added = len(seen_slugs) - before
-                print(
-                    f"  [{self.shop_name}] JSON page {page_num} ({collection}): "
-                    f"{len(products)} items, +{added} new slugs ({len(seen_slugs)} total)"
+                self.logger.info(
+                    "  [%s] JSON page %d (%s): %d items, +%d new slugs (%d total)",
+                    self.shop_name,
+                    page_num,
+                    collection,
+                    len(products),
+                    added,
+                    len(seen_slugs),
                 )
 
                 # Reaching <250 usually indicates the final page.
@@ -109,7 +117,7 @@ class ShopifyScraper(BaseScraper):
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright
         except ImportError:
-            print(f"  [{self.shop_name}] Playwright not installed, skipping dynamic scraping.")
+            self.logger.warning("  [%s] Playwright not installed, skipping dynamic scraping.", self.shop_name)
             return []
 
         results = []
@@ -128,14 +136,14 @@ class ShopifyScraper(BaseScraper):
                         paged_url = f"{collection_url}?page={page_num}"
                         before_count = len(seen_slugs)
                         try:
-                            print(f"  [{self.shop_name}] Crawling {paged_url}")
+                            self.logger.info("  [%s] Crawling %s", self.shop_name, paged_url)
                             page.goto(
                                 paged_url,
                                 timeout=40_000,
                                 wait_until="domcontentloaded",
                             )
                         except PlaywrightTimeoutError:
-                            print(f"  [{self.shop_name}] Timeout: {paged_url}")
+                            self.logger.warning("  [%s] Timeout: %s", self.shop_name, paged_url)
                             if page_num >= 2:
                                 break
                             continue
@@ -158,8 +166,13 @@ class ShopifyScraper(BaseScraper):
                             results.append({"slug": slug, "collection": collection_name})
 
                         newly_found = len(seen_slugs) - before_count
-                        print(
-                            f"  [{self.shop_name}] Page {page_num}: {len(anchors)} anchors, +{newly_found} new slugs ({len(seen_slugs)} total)"
+                        self.logger.info(
+                            "  [%s] Page %d: %d anchors, +%d new slugs (%d total)",
+                            self.shop_name,
+                            page_num,
+                            len(anchors),
+                            newly_found,
+                            len(seen_slugs),
                         )
 
                         # Stop early when pagination is exhausted.
@@ -172,7 +185,7 @@ class ShopifyScraper(BaseScraper):
 
                 browser.close()
         except Exception as exc:
-            print(f"  [{self.shop_name}] Playwright error: {exc}")
+            self.logger.error("  [%s] Playwright error: %s", self.shop_name, exc)
 
         return results
 
@@ -180,7 +193,9 @@ class ShopifyScraper(BaseScraper):
         """Fetch structured product data from Shopify's /products/<slug>.json endpoint."""
         url = f"{self.store_url}/products/{slug}.json"
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            resp = self._get_with_retry(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp is None:
+                return None
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("product", data)
@@ -193,8 +208,8 @@ class ShopifyScraper(BaseScraper):
         url = f"{self.store_url}/products/{slug}"
         fields: dict = {}
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
-            if resp.status_code != 200:
+            resp = self._get_with_retry(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp is None or resp.status_code != 200:
                 return fields
             fields = extract_product_fields_from_html(resp.text, product_url=url)
         except requests.RequestException:
@@ -382,17 +397,38 @@ class ShopifyScraper(BaseScraper):
             category_leaf_raw=taxonomy["category_leaf_raw"],
         )
 
+    def _get_with_retry(
+        self, url: str, max_retries: int = 3, backoff_base: float = 1.5, **kwargs
+    ):
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(url, **kwargs)
+                if resp.status_code in (429, 503):
+                    wait = backoff_base ** attempt
+                    self.logger.warning(
+                        "HTTP %d from %s, retry %d/%d in %.1fs",
+                        resp.status_code, url, attempt + 1, max_retries, wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                return resp
+            except requests.RequestException as exc:
+                self.logger.warning("Request failed %s: %s (attempt %d)", url, exc, attempt + 1)
+                if attempt < max_retries - 1:
+                    time.sleep(backoff_base ** attempt)
+        return None
+
     def scrape(self) -> list[ProductRecord]:
         if not self.store_url:
-            print("ShopifyScraper: no store_url configured, skipping.")
+            self.logger.warning("ShopifyScraper: no store_url configured, skipping.")
             return []
 
-        print(f"ShopifyScraper: starting {self.shop_name} ({self.store_url})")
+        self.logger.info("ShopifyScraper: starting %s (%s)", self.shop_name, self.store_url)
         now = datetime.now(timezone.utc).isoformat()
         records: list[ProductRecord] = []
 
         slug_info_json = self._extract_product_slugs_json_listing()
-        slug_info_playwright = self._extract_product_slugs_playwright()
+        slug_info_playwright = self._extract_product_slugs_playwright() if not slug_info_json else []
 
         # Merge JSON-listing + Playwright discoveries while preserving first-seen order.
         slug_info: list[dict] = []
@@ -404,7 +440,7 @@ class ShopifyScraper(BaseScraper):
             seen_slugs.add(slug)
             slug_info.append(info)
 
-        print(f"  [{self.shop_name}] Collected {len(slug_info)} product slugs, enriching...")
+        self.logger.info("  [%s] Collected %d product slugs, enriching...", self.shop_name, len(slug_info))
 
         for i, info in enumerate(slug_info):
             slug = info["slug"]
@@ -501,8 +537,8 @@ class ShopifyScraper(BaseScraper):
                     records.append(record)
 
             if (i + 1) % 20 == 0:
-                print(f"  [{self.shop_name}] Enriched {i + 1}/{len(slug_info)} products")
+                self.logger.info("  [%s] Enriched %d/%d products", self.shop_name, i + 1, len(slug_info))
             time.sleep(SCRAPING_DELAY)
 
-        print(f"ShopifyScraper: {self.shop_name} done — {len(records)} products")
+        self.logger.info("ShopifyScraper: %s done — %d products", self.shop_name, len(records))
         return records

@@ -4,33 +4,59 @@ Run with: python -m src.pipeline.local_pipeline  or  make pipeline
 """
 
 import sys
+from pathlib import Path
 
-from src.config import get_logger
+from src.config import get_logger, processed_dir
 
 logger = get_logger(__name__)
 
+# (name, module, artifact_check_fn)
+# artifact_check_fn: callable returning Path to check after the step runs.
+# If the path doesn't exist after the step, all downstream steps are skipped.
+STEPS = [
+    ("Scraping",                  "src.scraping.run_scrapers",     None),
+    ("Preprocessing",             "src.preprocessing.run",         lambda: processed_dir() / "products.parquet"),
+    ("Features",                  "src.features.build_features",   lambda: processed_dir() / "features.parquet"),
+    ("Scoring",                   "src.scoring.topk",              None),
+    ("Train classifier (RF)",     "src.ml.train_classifier",       None),
+    ("Train classifier (XGBoost)", "src.ml.train_xgboost",        None),
+    ("Clustering (KMeans)",       "src.ml.cluster_products",       None),
+    ("Clustering (DBSCAN)",       "src.ml.dbscan_products",        None),
+    ("Association rules",         "src.ml.rules",                  None),
+    ("LLM summary",               "src.llm.summarizer",            None),
+]
 
-def run():
-    steps = [
-        ("Scraping", "src.scraping.run_scrapers"),
-        ("Preprocessing", "src.preprocessing.run"),
-        ("Features", "src.features.build_features"),
-        ("Scoring", "src.scoring.topk"),
-        ("Train classifier (RF)", "src.ml.train_classifier"),
-        ("Train classifier (XGBoost)", "src.ml.train_xgboost"),
-        ("Clustering (KMeans)", "src.ml.cluster_products"),
-        ("Clustering (DBSCAN)", "src.ml.dbscan_products"),
-        ("Association rules", "src.ml.rules"),
-        ("LLM summary", "src.llm.summarizer"),
-    ]
-    for name, mod in steps:
+
+def _run_step(name: str, mod: str) -> None:
+    run_module = __import__(mod, fromlist=["run"])
+    getattr(run_module, "run")()
+
+
+def run() -> None:
+    skip_from: str | None = None
+
+    for name, mod, artifact_fn in STEPS:
+        if skip_from is not None:
+            logger.warning(
+                "Skipping %s — upstream step '%s' did not produce expected artifact.", name, skip_from
+            )
+            continue
+
         logger.info("--- %s ---", name)
         try:
-            run_module = __import__(mod, fromlist=["run"])
-            getattr(run_module, "run")()
+            _run_step(name, mod)
         except Exception as e:
             logger.error("Step %s failed: %s", name, e)
-            # Continue so remaining steps run (e.g. scrape can be empty)
+
+        if artifact_fn is not None:
+            artifact = Path(artifact_fn())
+            if not artifact.exists():
+                logger.error(
+                    "Step '%s' did not produce expected artifact %s — skipping downstream steps.",
+                    name, artifact,
+                )
+                skip_from = name
+
     logger.info("--- Pipeline finished ---")
 
 
