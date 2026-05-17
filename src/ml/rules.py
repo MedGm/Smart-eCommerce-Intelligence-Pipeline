@@ -33,25 +33,24 @@ def run(min_support: float = 0.05, min_confidence: float = 0.3):
         logger.warning("Empty features. Skipping association rules.")
         return
 
-    transactions = []
-    for _, row in df.iterrows():
-        items = set()
-        if pd.notna(row.get("category")) and row["category"] != "unknown":
-            items.add(f"cat:{row['category']}")
-        if pd.notna(row.get("brand")) and row["brand"] != "unknown":
-            items.add(f"brand:{row['brand']}")
-        if pd.notna(row.get("price_bucket")) and row["price_bucket"] != "mid":
-            items.add(f"price:{row['price_bucket']}")
-        if row.get("is_in_stock"):
-            items.add("in_stock")
-        else:
-            items.add("out_of_stock")
-        if row.get("discount_pct", 0) > 0.1:
-            items.add("has_discount")
-        if pd.notna(row.get("source_platform")):
-            items.add(f"platform:{row['source_platform']}")
-        if items:
-            transactions.append(list(items))
+    def _build_items(row: "pd.Series") -> list:
+        items = []
+        cat = row.get("category", None)
+        if pd.notna(cat) and str(cat) not in ("unknown", "", "nan"):
+            items.append(f"cat:{cat}")
+        pb = row.get("price_bucket", "mid")
+        if pd.notna(pb) and str(pb) != "mid":
+            items.append(f"price:{pb}")
+        items.append("in_stock" if row.get("is_in_stock") else "out_of_stock")
+        if float(row.get("discount_pct", 0) or 0) > 0.1:
+            items.append("has_discount")
+        return items
+
+    use_cols = [c for c in ["category", "price_bucket", "is_in_stock", "discount_pct"] if c in df.columns]
+    transactions = [
+        items for items in df[use_cols].apply(_build_items, axis=1)
+        if items
+    ]
 
     if len(transactions) < 10:
         logger.warning("Not enough transactions for association rules.")
