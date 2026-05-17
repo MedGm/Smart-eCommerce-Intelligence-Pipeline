@@ -11,3 +11,11 @@ __pycache__/
 notebooks/
 docs/
 tests/
+scripts/
+.github/
+.streamlit/
+manifests/
+docker-compose.yml
+kubeflow_smart_ecommerce_pipeline.yaml
+*.key
+*.pem
