@@ -24,11 +24,11 @@ from src.scraping.html_fallback import (
     extract_woocommerce_taxonomy_from_html,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class WooCommerceScraper(BaseScraper):
     """Scrape product data from a WooCommerce site using the Store API."""
-
-    logger = logging.getLogger(__name__)
 
     def __init__(
         self,
@@ -255,10 +255,10 @@ class WooCommerceScraper(BaseScraper):
 
     def scrape(self) -> list[ProductRecord]:
         if not self.site_url:
-            print("WooCommerceScraper: no site_url configured, skipping.")
+            logger.warning("WooCommerceScraper: no site_url configured, skipping.")
             return []
 
-        print(f"WooCommerceScraper: starting {self.shop_name} ({self.site_url})")
+        logger.info("WooCommerceScraper: starting %s (%s)", self.shop_name, self.site_url)
 
         per_page = 40
         max_pages = 25
@@ -270,17 +270,17 @@ class WooCommerceScraper(BaseScraper):
             try:
                 resp = self.session.get(url, timeout=15)
             except requests.RequestException as exc:
-                print(f"  [{self.shop_name}] Error on page {page}: {exc}")
+                logger.warning("  [%s] Error on page %d: %s", self.shop_name, page, exc)
                 break
 
             if resp.status_code != 200:
-                print(f"  [{self.shop_name}] Page {page} status {resp.status_code}, stopping.")
+                logger.warning("  [%s] Page %d status %d, stopping.", self.shop_name, page, resp.status_code)
                 break
 
             try:
                 data = resp.json()
             except ValueError:
-                print(f"  [{self.shop_name}] Invalid JSON on page {page}, stopping.")
+                logger.warning("  [%s] Invalid JSON on page %d, stopping.", self.shop_name, page)
                 break
 
             if not isinstance(data, list) or not data:
@@ -359,9 +359,9 @@ class WooCommerceScraper(BaseScraper):
                 )
                 records.append(record)
 
-            print(f"  [{self.shop_name}] Page {page}: {len(data)} items (total: {len(records)})")
+            logger.info("  [%s] Page %d: %d items (total: %d)", self.shop_name, page, len(data), len(records))
             if len(data) < per_page:
                 break
 
-        print(f"WooCommerceScraper: {self.shop_name} done — {len(records)} products")
+        logger.info("WooCommerceScraper: %s done — %d products", self.shop_name, len(records))
         return records
