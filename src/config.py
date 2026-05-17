@@ -26,6 +26,10 @@ def analytics_dir() -> Path:
     return data_dir() / "analytics"
 
 
+def models_dir() -> Path:
+    return data_dir() / "models"
+
+
 # ── Logging ────────────────────────────────────────────────────
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s — %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
