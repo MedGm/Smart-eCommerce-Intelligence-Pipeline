@@ -193,7 +193,9 @@ class ShopifyScraper(BaseScraper):
         """Fetch structured product data from Shopify's /products/<slug>.json endpoint."""
         url = f"{self.store_url}/products/{slug}.json"
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            resp = self._get_with_retry(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp is None:
+                return None
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("product", data)
@@ -206,8 +208,8 @@ class ShopifyScraper(BaseScraper):
         url = f"{self.store_url}/products/{slug}"
         fields: dict = {}
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
-            if resp.status_code != 200:
+            resp = self._get_with_retry(url, headers=HEADERS, timeout=SCRAPING_TIMEOUT)
+            if resp is None or resp.status_code != 200:
                 return fields
             fields = extract_product_fields_from_html(resp.text, product_url=url)
         except requests.RequestException:
@@ -394,6 +396,27 @@ class ShopifyScraper(BaseScraper):
             category_path_raw=taxonomy["category_path_raw"],
             category_leaf_raw=taxonomy["category_leaf_raw"],
         )
+
+    def _get_with_retry(
+        self, url: str, max_retries: int = 3, backoff_base: float = 1.5, **kwargs
+    ):
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(url, **kwargs)
+                if resp.status_code in (429, 503):
+                    wait = backoff_base ** attempt
+                    self.logger.warning(
+                        "HTTP %d from %s, retry %d/%d in %.1fs",
+                        resp.status_code, url, attempt + 1, max_retries, wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                return resp
+            except requests.RequestException as exc:
+                self.logger.warning("Request failed %s: %s (attempt %d)", url, exc, attempt + 1)
+                if attempt < max_retries - 1:
+                    time.sleep(backoff_base ** attempt)
+        return None
 
     def scrape(self) -> list[ProductRecord]:
         if not self.store_url:
