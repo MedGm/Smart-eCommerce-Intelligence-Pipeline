@@ -405,7 +405,7 @@ class ShopifyScraper(BaseScraper):
         records: list[ProductRecord] = []
 
         slug_info_json = self._extract_product_slugs_json_listing()
-        slug_info_playwright = self._extract_product_slugs_playwright()
+        slug_info_playwright = self._extract_product_slugs_playwright() if not slug_info_json else []
 
         # Merge JSON-listing + Playwright discoveries while preserving first-seen order.
         slug_info: list[dict] = []
