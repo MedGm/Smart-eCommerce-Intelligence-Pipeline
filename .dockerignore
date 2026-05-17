@@ -1,0 +1,13 @@
+.env
+.env.*
+data/
+__pycache__/
+**/__pycache__/
+*.pyc
+.git/
+.venv/
+.pytest_cache/
+.ruff_cache/
+notebooks/
+docs/
+tests/
