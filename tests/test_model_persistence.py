@@ -10,13 +10,20 @@ import pytest
 def _make_features_df():
     rng = np.random.default_rng(42)
     n = 60
-    return pd.DataFrame({
+    df = pd.DataFrame({
         "price": rng.uniform(10, 500, n),
         "dq_score": rng.uniform(0, 1, n),
+        "rating": rng.uniform(2.0, 4.2, n),
         "is_in_stock": rng.integers(0, 2, n).astype(float),
         "review_count": rng.integers(0, 200, n).astype(float),
         "shop_name": rng.choice(["shopA", "shopB", "shopC"], n),
     })
+    # Force ~20 high-potential products so both classes are well-represented
+    # across CV folds (requires rating>=4.3, review_count>=10, is_in_stock=1)
+    df.loc[:19, "rating"] = 4.5
+    df.loc[:19, "review_count"] = 50.0
+    df.loc[:19, "is_in_stock"] = 1.0
+    return df
 
 
 def test_rf_model_saved_to_disk(tmp_path):
