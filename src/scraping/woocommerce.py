@@ -174,7 +174,7 @@ class WooCommerceScraper(BaseScraper):
             if resp.status_code == 200:
                 return resp.text
         except requests.RequestException as exc:
-            self.logger.debug("HTML fetch failed for %s: %s", url, exc)
+            logger.debug("HTML fetch failed for %s: %s", url, exc)
         return None
 
     def _enrich_from_html(self, product_url: str, product_title: str | None = None) -> dict:
